@@ -54,10 +54,18 @@
 
 #define LED_PIN  PB1
 
-#define IRRCV    PB4
-#define IRPORT   PORTB
-#define IRDDR    DDRB
-#define IRPIN    PINB
+// these must be defined before including i2cmaster_bitbang
+#define I2C_DDR  DDRB
+#define I2C_PIN  PINB
+#define I2C_PORT PORTB
+#define I2C_CLK  PB2    
+#define I2C_DAT  PB0
+
+// these must be defined before inclding irsony
+#define IR_RCV    PB4
+#define IR_PORT   PORTB
+#define IR_DDR    DDRB
+#define IR_PIN    PINB
 
 #if DEBUG>0
 // must define this before including softuart.h
@@ -92,7 +100,7 @@ static volatile uint8_t timertick;
 #define MICROSEC_PER_TICK 64    1MHz with /64 timer0 clock
 
 #define FADESPEED_DEFAULT 10
-#define FADESPEED_RANDMOOD 3
+#define FADESPEED_RANDMOOD 2
 #define FADESPEED_RANDFAST 100
 
 #define MILLIS_MOOD  5000

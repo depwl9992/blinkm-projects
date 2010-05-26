@@ -62,13 +62,13 @@ static void ir_init()
     irpos  = 0;
     t0over = 0;
     TCCR0B = _BV(CS01);              // start timer0 with /64
-    IRPORT |= _BV(IRRCV); // turn on internal pullup
+    IR_PORT |= _BV(IR_RCV); // turn on internal pullup
 }
 // get the last key read (if any) , return 0 if no key
 static uint16_t ir_getkey()
 {
     uint16_t k = irkey;
-    irkey=0;
+    irkey = 0;
     return k;
 }
 
@@ -82,7 +82,7 @@ ISR(TIMER0_OVF_vect)
 // connect to pin change interrupt masked for PBx only
 ISR(PCINT0_vect)
 {
-    uint8_t in = (IRPIN & _BV(IRRCV));  // read in level
+    uint8_t in = (IR_PIN & _BV(IR_RCV));  // read in level
     uint8_t deltaTime = TCNT0;          // get time since last pin change
     uint8_t tover = t0over;
     TCNT0  = 0;                         // reset timer value for next pass
