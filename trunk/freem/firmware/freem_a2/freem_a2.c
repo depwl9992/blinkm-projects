@@ -11,15 +11,15 @@
  * - ENTER     -
  * - MUTE      - 
  * - Num keys  - do something interesting
- *   1 - random mood light (calc'd in FreeM)
- *   2 - 
- *   3 -
- *   4 - 
- *   5 - 
- *   6 - 
- *   7 - 
- *   8 -
- *   9 - 
+ *   1 - random slowly changing mood light (calc'd in FreeM)
+ *   2 - fast random colors
+ *   3 - flashing beacon, use ch up/dn to change hue, press 3 again to start
+ *   4 - yellow
+ *   5 - aqua
+ *   6 - purple
+ *   7 - dim white
+ *   8 - med white
+ *   9 - bright white
  *   0 - play script 0 on BlinkM
  * 
  * Data Mode:
@@ -41,43 +41,45 @@
  *
  */
 
-
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <util/delay.h>    // for _delay_ms()
 #include <stdint.h>        // for types like uint8_t, etc.
-//#include <stdlib.h>        // for rand()
+#include <stdlib.h>        // for rand()
 
+// set DEBUG to 0 to disable all debug info and save code space
+// set DEBUG to 1 to enable serial debugging on pin 6 (PB1)
+// set DEBUG to 2 to enable serial logging off all keys received 
+#define DEBUG 1
+
+#define LED_PIN  PB1
+
+#define IRRCV    PB4
+#define IRPORT   PORTB
+#define IRDDR    DDRB
+#define IRPIN    PINB
+
+#if DEBUG>0
+// must define this before including softuart.h
 #if F_CPU == 500000
 #define _baudRate  2400 // if F_CPU=500kHz
 #endif
 #if F_CPU == 8000000
 #define _baudRate  38400  // if F_CPU=8MHz
 #endif
-
 #include "softuart.h"
+#endif
 
 #include "i2cmaster_bitbang.c"
-
-#define LED_PIN  PB1
-
-#define IRRCV   PB4
-#define IRPORT  PORTB
-#define IRDDR   DDRB
-#define IRPIN   PINB
-
 #include "irsony.c"
 
 
 //  The timing information for timer to fire periodically to measure touch  
 #define MEASUREMENT_PERIOD_MS       49
 #define T1OVF_PER_MEASUREMENT        3
-// testing
-//#define MEASUREMENT_PERIOD_MS       (262*4)
-//#define T1OVF_PER_MEASUREMENT        4
 
 // flag set by timer ISR when it's time to measure touch 
-static volatile uint8_t time_to_measure = 0;
+static volatile uint8_t time_to_act = 0;
 
 // current time, set by timer ISR 
 static volatile uint16_t millis = 0;
@@ -89,12 +91,20 @@ static volatile uint8_t timertick;
 //#define MICROSEC_PER_TICK 8   1MHz with  /8 timer0 clock 
 #define MICROSEC_PER_TICK 64    1MHz with /64 timer0 clock
 
+#define FADESPEED_DEFAULT 10
+#define FADESPEED_RANDMOOD 3
+#define FADESPEED_RANDFAST 100
+
+#define MILLIS_MOOD  5000
+#define MILLIS_FAST  250
 
 // the different modes FreeM can be in
 enum {
     MODE_OFF,
     MODE_HUE,
     MODE_RANDMOOD,
+    MODE_RANDFAST,
+    MODE_FLASH,
     MODE_NUMKEY,
     MODE_PLAYSCRIPT,
     MODE_DATA,
@@ -103,10 +113,10 @@ uint8_t mode = MODE_OFF;
 
 uint16_t key;
 uint8_t hue;
-uint8_t brightness;
+uint8_t bri;
 uint16_t changemillis;
-uint16_t moodmillis = 1000;
 
+// I2C address of blinkm, or 0 to address all blinkms
 uint8_t i2csendaddr = 0;
 
 
@@ -116,6 +126,7 @@ uint8_t i2csendaddr = 0;
 
 // this is a really cheapie rand
 // using this instead of real rand() saves 300 bytes
+/*
 static uint8_t rand8bit(void)
 {
     static int16_t rctx;
@@ -127,12 +138,13 @@ static uint8_t rand8bit(void)
     return x;
 }
 #define rand(x) rand8bit(x)
+*/
 
 //-----------------------------------------------------
 // blinkm funcs
 //
 
-static void blinkm_stop(void)
+static void blinkm_stopScript(void)
 {
     i2c_start();
     i2c_write((i2csendaddr<<1));  // FIXME: check return value
@@ -182,7 +194,7 @@ static void blinkm_playScript( uint8_t p, uint8_t n )
 
 static void blinkm_turnOff(void)
 {
-    blinkm_stop();
+    blinkm_stopScript();
     blinkm_setRGB( 0,0,0 );
 }
 
@@ -190,48 +202,55 @@ static void blinkm_turnOff(void)
 // -----------------------------------------------------
 
 //
-void handle_key(void)
+static void handle_key(void)
 {
     key = ir_getkey();
     if( key==0 )  // no key
         return;
     
-    softuart_puts("k:");
-    softuart_printHex16( key );
-    softuart_putc('\n');
+#if DEBUG > 1
+    softuart_puts("k:"); softuart_printHex16( key ); softuart_putc('\n');
+#endif
 
-            
+    if( !(key == IRKEY_VOLUP || key == IRKEY_VOLDN) ) { 
+        blinkm_stopScript();
+        blinkm_setFadespeed( FADESPEED_DEFAULT );
+    }
+
     if(      key == IRKEY_POWER ) {
         mode = MODE_OFF;
         blinkm_turnOff();
     }
     else if( key == IRKEY_CHUP ) {
         mode = MODE_HUE;
-        hue++;
+        if( bri==0 ) bri = 120;
+        hue +=5;
     }
     else if( key == IRKEY_CHDN ) { 
         mode = MODE_HUE;
-        hue--;
+        if( bri==0 ) bri = 120;
+        hue -=5;
     }
     else if( key == IRKEY_VOLUP ) { 
-        if( brightness < 255 )
-            brightness += 5;
+        if( bri >= 250 )
+            bri = 255;
+        else bri += 10;
     }
     else if( key == IRKEY_VOLDN ) { 
-        if( brightness != 0 )
-            brightness -= 5;
+        if( bri < 5 )
+            bri = 0;
+        else bri -= 10;
     }
     else if( key == IRKEY_ONE ) {
         mode = MODE_RANDMOOD;
-        changemillis = millis;
+        if( bri == 0 ) bri = 127;
     }
     else if( key == IRKEY_TWO ) {
-        mode = MODE_NUMKEY;
-        blinkm_fadeToRGB( 0xff,0xff,0xff );
+        mode = MODE_RANDFAST;
+        if( bri == 0 ) bri = 127;
     }
     else if( key == IRKEY_THREE ) {
-        mode = MODE_NUMKEY;
-        blinkm_fadeToRGB( 0xff,0x00,0xff );
+        mode = MODE_FLASH;
     }
     else if( key == IRKEY_FOUR ) {
         mode = MODE_NUMKEY;
@@ -259,6 +278,7 @@ void handle_key(void)
     }
     else if( key == IRKEY_ZERO ) {
         mode = MODE_PLAYSCRIPT;
+        blinkm_setFadespeed( FADESPEED_DEFAULT );
         blinkm_playScript( 0,0 );
     }
     else if( key == IRKEY_FREEM_DATA_ON ) { 
@@ -267,6 +287,11 @@ void handle_key(void)
     else if( key == IRKEY_FREEM_DATA_OFF ) {
         mode = MODE_OFF;
     }
+#if DEBUG>0
+    softuart_printHex(mode); softuart_puts(" hb:");
+    softuart_printHex(hue);  softuart_putc(',');
+    softuart_printHex(bri);  softuart_putc('\n');
+#endif
 }
 
 // ------------------------------------------------------
@@ -304,9 +329,10 @@ int main( void )
 
     sei();       // enable interrupts 
 
+#if DEBUG>0
     softuart_init();
     softuart_puts("\nfreem_a2\n");
-
+#endif
     ir_init();
 
     i2c_init();
@@ -317,50 +343,77 @@ int main( void )
 
     // a little hello fanfare
     for( int i=0;i<2; i++ ) {
-        softuart_printHex16( i );
+#if DEBUG>0
         softuart_puts("!");
-        blinkm_setRGB( 0x02,0x02,0x02);
+#endif
+        blinkm_setRGB( 0x09,0x09,0x09);
         _delay_ms(150);
-        blinkm_setRGB( 0x01,0x01,0x01);
+        blinkm_setRGB( 0x00,0x00,0x00);
         _delay_ms(150);
     }
-    blinkm_setRGB( 0,0,0 );
-
-    softuart_puts(":\n");
 
     hue = 0;
-    brightness = 127;
+    bri = 255;
 
     mode = MODE_RANDMOOD;  // start out in moodlight mode
-    
+    blinkm_fadeToHSB( rand(),255,bri );
+    time_to_act = 1; 
+
     // loop forever 
     for( ; ; ) {
-        if( time_to_measure ) {
-            time_to_measure = 0; // clear flag: time to measure touch 
+        if( time_to_act ) {
+            time_to_act = 0; // clear flag
 
             handle_key();
 
         }
        
+        // FIXME: this could be refactored to be more efficient
         if( mode == MODE_RANDMOOD ) { 
-            if( millis - changemillis > moodmillis ) {
+            if( millis - changemillis > MILLIS_MOOD ) {
                 changemillis = millis;
                 hue = rand();
-                softuart_puts("new rand hue:");
-                softuart_printHex(hue);
-                blinkm_fadeToRGB( hue, 255, brightness );
+#if DEBUG>0
+                softuart_puts("rhb:");
+                softuart_printHex(hue); softuart_putc(',');
+                softuart_printHex(bri); softuart_putc('\n');
+#endif
             }
-        } 
+            blinkm_setFadespeed( FADESPEED_RANDMOOD );
+            blinkm_fadeToHSB( hue, 255, bri );
+        }
+        else if( mode == MODE_RANDFAST ) { 
+            if( millis - changemillis > MILLIS_FAST ) { 
+                changemillis = millis;
+                hue = rand();
+                blinkm_setFadespeed( FADESPEED_RANDFAST );
+                blinkm_fadeToHSB( hue, 255, bri );
+            }
+            blinkm_setFadespeed( FADESPEED_RANDFAST );
+            blinkm_fadeToHSB( hue, 255, bri );
+        }
         else if( mode == MODE_HUE ) {
-            blinkm_fadeToHSB( hue, 255, brightness );
+            blinkm_setFadespeed( FADESPEED_RANDMOOD );
+            blinkm_fadeToHSB( hue, 255, bri );
+        }
+        else if( mode == MODE_FLASH ) {
+            if( millis - changemillis > MILLIS_FAST ) { 
+                changemillis = millis;
+                bri = (bri==255) ? 0:255;
+                blinkm_setFadespeed( FADESPEED_RANDFAST );
+                blinkm_fadeToHSB( hue, 255, bri);
+            }
         }
         else if( mode == MODE_DATA ) {
+#if DEBUG>0
+            softuart_puts("data mode\n");
             key = ir_getkey();
             for( int i=0;i<key; i++ ) {  // debug: blink num received
                 softuart_printHex16( i );
                 blinkm_setRGB( 0x20,0x20,0x20);
                 _delay_ms(100);
             }
+#endif
         }
 
     } // for
@@ -384,7 +437,7 @@ ISR(TIMER1_OVF_vect)
     t1ovf_count++;
     if( t1ovf_count == T1OVF_PER_MEASUREMENT ) {
         t1ovf_count = 0;
-        time_to_measure = 1;    //  set flag: time to measure 
+        time_to_act = 1;    //  set flag: time to do something
         millis += MEASUREMENT_PERIOD_MS;  // update current time 
     }
 }
