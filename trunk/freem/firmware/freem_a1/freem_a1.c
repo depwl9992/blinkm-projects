@@ -1,5 +1,5 @@
 /**
- * battir4.c -- BlinkM Battery Remote demonstration firmware
+ * freem_a1.c -- BlinkM Battery Remote demonstration firmware
  * 
  *  2010 Tod E. Kurt, labs.thingm.com
  *
@@ -21,7 +21,7 @@
  * battir3 pcb layout
  * attiny45       -- function
  * pin 1 -- PB5   -- RESET
- * pin 2 -- PB3   -- PHOTOCELL
+ * pin 2 -- PB3   -- PHOTOCELL  (unused)
  * pin 3 -- PB4   -- IRDETECT
  * pin 4 -- GND   -- GND
  * pin 5 -- PB0   -- SDA/MOSI    -- 
