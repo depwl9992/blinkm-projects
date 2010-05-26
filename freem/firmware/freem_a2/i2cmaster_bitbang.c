@@ -6,14 +6,10 @@
 
 #include <util/delay.h>      
 
-// Port for the I2C
-#define I2C_DDR DDRB
-#define I2C_PIN PINB
-#define I2C_PORT PORTB
+// MUST define 
+// I2C_DDR, I2C_PIN, I2C_PORT
+// I2C_CLK and I2C_DAT
 
-// Pins to be used in the bit banging
-#define I2C_CLK PB2    
-#define I2C_DAT PB0
 
 //#define DELAYUS 50   // should be ~5.0 but whatever
 const int i2cbitdelay = 50;
