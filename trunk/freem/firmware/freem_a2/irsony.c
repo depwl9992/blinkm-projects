@@ -4,8 +4,8 @@
  *
  */
 
-#define IRKEY_FREEM_DATA_ON  0x1234  // 4660 -special addon escapes to datamode
-#define IRKEY_FREEM_DATA_OFF 0x1235  // 4661 -special addon escapes out datamode
+#define IRKEY_FREEM_DATA_ON  0x07F7  // special addon escapes to datamode
+#define IRKEY_FREEM_DATA_OFF 0x07F8  // special addon escapes out datamode
 
 #define IRKEY_ONE    0x80  // 128
 #define IRKEY_TWO    0x81  // 129
@@ -42,9 +42,9 @@
 // there are 13 LOW transitions in a standard Sony IR packet
 #define SAMPLE_SIZE 13
 static volatile uint16_t irtime[SAMPLE_SIZE];
-static volatile uint8_t  irpos; // pos in irtime
-static volatile uint8_t t0over; // overflow counts
-static volatile uint16_t irkey; // last IR key read
+static volatile uint8_t  irpos;  // pos in irtime
+static volatile uint8_t  t0over; // overflow counts
+static volatile uint16_t irkey;  // last IR key read
 
 //call this to initialize hardware, enable global interrupts in mainline code
 //timer 0 (8 bit), normal mode, /256 clock, @8Mhz - 32us/bit, rollover in 8.192ms

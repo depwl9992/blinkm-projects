@@ -53,6 +53,8 @@
 #define DEBUG 1
 
 #define LED_PIN  PB1
+#define LED_PORT PORTB
+#define LED_DDR  DDRB
 
 // these must be defined before including i2cmaster_bitbang
 #define I2C_DDR  DDRB
@@ -76,35 +78,32 @@
 #define _baudRate  38400  // if F_CPU=8MHz
 #endif
 #include "softuart.h"
+#else  // if DEBUG==0 nuke the func calls so they're just ignored
+#define softuart_init()
+#define softuart_putc(x)
+#define softuart_puts(x)
+#define softuart_printHex(x)
+#define softuart_printHex16(x)
 #endif
 
 #include "i2cmaster_bitbang.c"
 #include "irsony.c"
 
 
-//  The timing information for timer to fire periodically to measure touch  
-#define MEASUREMENT_PERIOD_MS       49
-#define T1OVF_PER_MEASUREMENT        3
-
-// flag set by timer ISR when it's time to measure touch 
-static volatile uint8_t time_to_act = 0;
-
-// current time, set by timer ISR 
-static volatile uint16_t millis = 0;
-static volatile uint8_t t1ovf_count;
-static volatile uint8_t timertick;
+//  The timing information for timer to fire periodically 
+#define MILLIS_PER_T1OVF       4      // actually 4.1msec
+static volatile uint16_t millis = 0;  // current time, set by timer ISR 
+static volatile uint8_t t1ovf_count;  
+static uint16_t lastmillis;           // the previous time we did something
 
 //-----------------------------------------------------
 
-//#define MICROSEC_PER_TICK 8   1MHz with  /8 timer0 clock 
-#define MICROSEC_PER_TICK 64    1MHz with /64 timer0 clock
+#define FADESPEED_DEFAULT    10
+#define FADESPEED_RANDMOOD    2
+#define FADESPEED_RANDFAST  100
 
-#define FADESPEED_DEFAULT 10
-#define FADESPEED_RANDMOOD 2
-#define FADESPEED_RANDFAST 100
-
-#define MILLIS_MOOD  5000
-#define MILLIS_FAST  250
+#define MILLIS_MOOD  4000
+#define MILLIS_FAST   300
 
 // the different modes FreeM can be in
 enum {
@@ -117,16 +116,15 @@ enum {
     MODE_PLAYSCRIPT,
     MODE_DATA,
 };
-uint8_t mode = MODE_OFF;
+uint8_t mode = MODE_OFF; 
 
-uint16_t key;
-uint8_t hue;
-uint8_t bri;
-uint16_t changemillis;
+uint16_t key;            // keypress
+uint8_t hue;             // current hue
+uint8_t bri;             // current brightness
+uint16_t changemillis;   // the last time we changed, for RANDMOOD, etc.
 
 // I2C address of blinkm, or 0 to address all blinkms
 uint8_t i2csendaddr = 0;
-
 
 //-----------------------------------------------------
 // utility funcs
@@ -209,6 +207,71 @@ static void blinkm_turnOff(void)
 
 // -----------------------------------------------------
 
+static void statled_set(uint8_t v)
+{
+    if(v) LED_PORT |=  _BV( LED_PIN );
+    else  LED_PORT &=~ _BV( LED_PIN );
+} 
+static void statled_toggle(void)
+{
+    LED_PORT ^= _BV(LED_PIN);
+}
+
+//
+// Attempt to have a litle datapath in there for sending blinkm cmds over IR
+// Doesn't work very reliably yet
+//
+static void get_data(void)
+{
+    uint8_t i,j,d[8];                  // the data, at most 8 bytes
+    uint16_t v,len=0;
+
+    j=200;
+    while( !(len = ir_getkey()) ) {      // length of packet
+        _delay_ms(1);
+        j--;
+        if( j == 0 )                     // FIXME: dumb timeout
+            goto dataerror;
+    }
+    len = (len>8) ? 8 : len;             // enforce bounds
+
+    for( i=0; i<len; i++ ) {  
+        j = 200;
+        while( !(v=ir_getkey()) ) {     // wait for key then store it
+            _delay_ms(1);
+            j--;
+            if( j == 0 )                // FIXME: dumb timeout
+                goto dataerror2;
+        }
+        d[i] = v;
+    }
+
+
+ datadone:
+    /* // this takes too long, 2400 bps sucks
+    softuart_printHex(len);
+    softuart_putc('=');
+    for( i=0;i<len;i++) {
+        softuart_printHex( d[i] ); softuart_putc(',');
+    }
+    */
+    // now do something with that data
+    if( len == 4 ) { 
+        softuart_putc('*');
+        blinkm_sendCmd3( d[0], d[1],d[2],d[3] );
+    }
+    mode = MODE_OFF;
+    return;
+
+ dataerror2:
+    softuart_putc('!');
+ dataerror:
+    softuart_putc('!');
+    goto datadone;  // so we can at least see the partial data
+}
+
+//
+// Parse the key presses from IR remote
 //
 static void handle_key(void)
 {
@@ -218,6 +281,9 @@ static void handle_key(void)
     
 #if DEBUG > 1
     softuart_puts("k:"); softuart_printHex16( key ); softuart_putc('\n');
+#endif
+#if DEBUG==0
+        statled_toggle();
 #endif
 
     if( !(key == IRKEY_VOLUP || key == IRKEY_VOLDN) ) { 
@@ -291,15 +357,16 @@ static void handle_key(void)
     }
     else if( key == IRKEY_FREEM_DATA_ON ) { 
         mode = MODE_DATA;
+        get_data();
     }
     else if( key == IRKEY_FREEM_DATA_OFF ) {
         mode = MODE_OFF;
     }
-#if DEBUG>0
-    softuart_printHex(mode); softuart_puts(" hb:");
+
+    softuart_printHex(mode); softuart_puts(" hb:"); // print little summary
     softuart_printHex(hue);  softuart_putc(',');
     softuart_printHex(bri);  softuart_putc('\n');
-#endif
+
 }
 
 // ------------------------------------------------------
@@ -320,40 +387,41 @@ static void init_system( void )
 //
 static void init_timer_isr( void )
 {
-    TCCR1 |= _BV(CS12)|_BV(CS11)|_BV(CS10); // clock/64   see calc below @.5MHz
-    //TCCR1 |= _BV(CS13);                   // clock/128  see calc below @1MHz
-    //TCCR1 |= _BV(CS13) | _BV(CS11);       // clock/1024 see calc below @8MHz
-    //TCCR1 |= _BV(CS13) | _BV(CS12) | _BV(CS11);  // clock/8192 // testing
+    TCCR1 |= _BV(CS12);                       // clock/8  see calc below @.5MHz
+    //TCCR1 |= _BV(CS12)|_BV(CS11)|_BV(CS10); // clock/64  see calc below @.5MHz
     TIFR  |= _BV( TOV1 );       // clear interrupt flag
     TIMSK |= _BV( TOIE1 );      // enable timer 1 overflow interrupt
 }
 
 
+//
+// 
+//
 int main( void )
 {
     init_system();      // initialise host app, pins, watchdog, etc 
-    
-    init_timer_isr();      // configure timer ISR to fire regularly 
+    init_timer_isr();   // configure timer ISR to fire regularly 
+    sei();              // enable interrupts 
 
-    sei();       // enable interrupts 
+    LED_DDR |= _BV( LED_PIN );  // make output
 
-#if DEBUG>0
     softuart_init();
     softuart_puts("\nfreem_a2\n");
-#endif
+
     ir_init();
 
     i2c_init();
     
-    _delay_ms(300);
+    lastmillis = millis;
+    _delay_ms(300);     // just chill a bit, yo
+    softuart_printHex16( millis-lastmillis );   // debug timekeeping
 
     blinkm_turnOff();
 
     // a little hello fanfare
+    statled_set(1);
     for( int i=0;i<2; i++ ) {
-#if DEBUG>0
         softuart_puts("!");
-#endif
         blinkm_setRGB( 0x09,0x09,0x09);
         _delay_ms(150);
         blinkm_setRGB( 0x00,0x00,0x00);
@@ -364,28 +432,23 @@ int main( void )
     bri = 255;
 
     mode = MODE_RANDMOOD;  // start out in moodlight mode
+    lastmillis = 0-MILLIS_MOOD;
     blinkm_fadeToHSB( rand(),255,bri );
-    time_to_act = 1; 
+
 
     // loop forever 
     for( ; ; ) {
-        if( time_to_act ) {
-            time_to_act = 0; // clear flag
 
-            handle_key();
-
-        }
-       
+        handle_key();  // read a key, maybe change mode, or hue/bri
+    
         // FIXME: this could be refactored to be more efficient
         if( mode == MODE_RANDMOOD ) { 
             if( millis - changemillis > MILLIS_MOOD ) {
                 changemillis = millis;
                 hue = rand();
-#if DEBUG>0
                 softuart_puts("rhb:");
                 softuart_printHex(hue); softuart_putc(',');
                 softuart_printHex(bri); softuart_putc('\n');
-#endif
             }
             blinkm_setFadespeed( FADESPEED_RANDMOOD );
             blinkm_fadeToHSB( hue, 255, bri );
@@ -412,42 +475,27 @@ int main( void )
                 blinkm_fadeToHSB( hue, 255, bri);
             }
         }
-        else if( mode == MODE_DATA ) {
-#if DEBUG>0
-            softuart_puts("data mode\n");
-            key = ir_getkey();
-            for( int i=0;i<key; i++ ) {  // debug: blink num received
-                softuart_printHex16( i );
-                blinkm_setRGB( 0x20,0x20,0x20);
-                _delay_ms(100);
-            }
-#endif
-        }
-
+        
     } // for
 }
 
 
 //
 // Timer1 Overflow interrupt
-// Called on overflow (256 ticks) of Timer1.  8MHz internal clock  FIXME
+// Called on overflow (256 ticks) of Timer1. 0.5MHz internal clock 
 // We want approximately 50 milliseconds between measurements
-// calculate with '1/(8e6/256/_1024_) * 1000' to get milliseconds
-// With CS   12       set (clk/    8), Timer1 overflows @ 
-// With CS13       10 set (clk/  256), Timer1 overflows @ 122 Hz       (8.2ms)
-// With CS13    11    set (clk/  512), Timer1 overflows @  61 Hz      (16.3ms) *
-// With CS13    11 10 set (clk/ 1024), Timer1 overflows @  30.517 Hz  (32.7ms)
-// With CS13 12 11    set (clk/ 8192), Timer1 overflows @  3.814 Hz   (262ms)
+// calculate with '1/(0.5e6/256/_1024_) * 1000' to get milliseconds
+//  CS      11    set (clk/    2), Timer1 ovfs @976.6 Hz   (  1.0ms)
+//  CS   12       set (clk/    8), Timer1 ovfs @244.1 Hz   (  4.1ms)
+//  CS   12 11 10 set (clk/   64), Timer1 ovfs @ 30.5 Hz   ( 32.7ms)*
+//  CS13       10 set (clk/  256), Timer1 ovfs @  7.6 Hz   (131.0ms)
+//  CS13    11    set (clk/  512), Timer1 ovfs @  3.8 Hz   (262.1ms) 
+//  CS13    11 10 set (clk/ 1024), Timer1 ovfs @  1.9 Hz   (524.3ms)
+//  CS13 12 11    set (clk/ 8192), Timer1 ovfs @
 // See table 15-2  in ATtiny45 datasheet for more
 ISR(TIMER1_OVF_vect)
 {
-    timertick++;
-    t1ovf_count++;
-    if( t1ovf_count == T1OVF_PER_MEASUREMENT ) {
-        t1ovf_count = 0;
-        time_to_act = 1;    //  set flag: time to do something
-        millis += MEASUREMENT_PERIOD_MS;  // update current time 
-    }
+    millis += MILLIS_PER_T1OVF;
 }
 
 

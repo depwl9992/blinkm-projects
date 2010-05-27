@@ -16,7 +16,7 @@ const int i2cbitdelay = 50;
 
 // to enable internal pullups
 // when pin is set to input, set pull-up (set PORT to 1)
-// when pen is set to output, clr pul-up (set PORT to 0)
+// when pin is set to output, clr pul-up (set PORT to 0)
 
 #define I2C_DATA_HI()  I2C_DDR  &=~ _BV( I2C_DAT ); I2C_PORT |= _BV( I2C_DAT ); 
 #define I2C_DATA_LO()  I2C_PORT &=~ _BV( I2C_DAT ); I2C_DDR  |= _BV( I2C_DAT ); 
