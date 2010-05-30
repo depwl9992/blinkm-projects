@@ -388,7 +388,7 @@ static void init_system( void )
 static void init_timer_isr( void )
 {
     TCCR1 |= _BV(CS12);                       // clock/8  see calc below @.5MHz
-    //TCCR1 |= _BV(CS12)|_BV(CS11)|_BV(CS10); // clock/64  see calc below @.5MHz
+    //TCCR1 |= _BV(CS12)|_BV(CS11)|_BV(CS10); // clock/64 see calc below @.5MHz
     TIFR  |= _BV( TOV1 );       // clear interrupt flag
     TIMSK |= _BV( TOIE1 );      // enable timer 1 overflow interrupt
 }
