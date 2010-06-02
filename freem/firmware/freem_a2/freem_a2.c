@@ -23,8 +23,8 @@
  *   0 - play script 0 on BlinkM
  * 
  * Data Mode:
- * - Sending keycode of 0x1234 escapes into data mode
- * - Sending keycode of 0x1235 escapes out of data mode
+ * - Sending keycode of 0x07F7 escapes into data mode
+ * - Sending keycode of 0x07F8 escapes out of data mode
  * - data format is: len,byte_0,byte_1,byte_2,...byte_len-1
  *
  * "BlinkM Battery Remote" - battir3 pcb layout
