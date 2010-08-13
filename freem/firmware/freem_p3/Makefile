@@ -3,7 +3,7 @@
 ###############################################################################
 
 ## General Flags
-TARGET = freem_a3
+TARGET = freem_p3
 
 #MCU = atmega328p
 #MCU = attiny25
