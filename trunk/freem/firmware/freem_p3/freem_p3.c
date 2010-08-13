@@ -1,5 +1,5 @@
 /**
- * freem_a3.c -- FreeM: BlinkM Battery Remote demonstration firmware
+ * freem_p3.c -- FreeM: BlinkM Battery Remote demonstration firmware
  *               Use with "BlinkM Battery Remote" (battir3) circuit
  * 
  * 2010 Tod E. Kurt, labs.thingm.com
@@ -411,7 +411,7 @@ int main( void )
     LED_DDR |= _BV( LED_PIN );  // make output
 
     softuart_init();
-    softuart_puts("\nfreem_a3\n");
+    softuart_puts("\nfreem_p3\n");
 
     ir_init();
 
