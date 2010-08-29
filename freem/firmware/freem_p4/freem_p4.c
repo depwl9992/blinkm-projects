@@ -365,13 +365,13 @@ static void handle_key(void)
         blinkm_setFadespeed( FADESPEED_DEFAULT );
         blinkm_playScript( 0,0 );
     }
-    else if( key == IRKEY_FREEM_DATA_ON ) { 
-        mode = MODE_DATA;
-        get_data();
-    }
-    else if( key == IRKEY_FREEM_DATA_OFF ) {
-        mode = MODE_OFF;
-    }
+    //else if( key == IRKEY_FREEM_DATA_ON ) { 
+    //    mode = MODE_DATA;
+    //    get_data();
+    // }
+    //else if( key == IRKEY_FREEM_DATA_OFF ) {
+    //    mode = MODE_OFF;
+    //}
 
     /*
     softuart_puts("m:"); softuart_printHex(mode); 
