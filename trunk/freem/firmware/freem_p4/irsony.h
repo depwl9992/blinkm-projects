@@ -6,33 +6,8 @@
 
 #include <string.h>  // memset
 
-#define IRKEY_FREEM_DATA_ON  0x07F7  // special addon escapes to datamode
-#define IRKEY_FREEM_DATA_OFF 0x07F8  // special addon escapes out datamode
-
-/*
-#define IRKEY_ONE    0x80  // 128
-#define IRKEY_TWO    0x81  // 129
-#define IRKEY_THREE  0x82  // 130
-#define IRKEY_FOUR   0x83  // 131
-#define IRKEY_FIVE   0x84  // 132
-#define IRKEY_SIX    0x85  // 133
-#define IRKEY_SEVEN  0x86  // 134
-#define IRKEY_EIGHT  0x87  // 135
-#define IRKEY_NINE   0x88  // 136
-#define IRKEY_ZERO   0x89  // 137
-#define IRKEY_ENTER  0x8b  // 139
-#define IRKEY_CHUP   0x90  // 144
-#define IRKEY_CHDN   0x91  // 145
-#define IRKEY_VOLUP  0x92  // 146
-#define IRKEY_VOLDN  0x93  // 147
-#define IRKEY_MUTE   0x94  // 148
-#define IRKEY_POWER  0x95  // 149
-
-#define IRKEY_TVVCR  0xa5  // 165
-#define IRKEY_PREVCH 0xbb  // 187
-#define IRKEY_MENU   0xe0  // 224
-#define IRKEY_ENTER2 0xe5  // 229
-*/
+//#define IRKEY_FREEM_DATA_ON  0x07F7  // special addon escapes to datamode
+//#define IRKEY_FREEM_DATA_OFF 0x07F8  // special addon escapes out datamode
 
 // measure values from remote on T0/64:  310, 157, 82 
 // measure values from remote on T0/256:  78,  40, 22
@@ -46,10 +21,6 @@
 
 #define GAP_USEC 3000
 #define GAP_TICKS (GAP_USEC/USECPERTICK)
-
-//#define SONY_HDR_MARK_TICKS  255
-//#define SONY_ONE_MARK_TICKS  100
-//#define SONY_ZERO_MARK_TICKS  50  //unused
 
 #define SONY_HDR_MARK_REAL  2400
 #define SONY_ONE_MARK_REAL  1200
@@ -88,17 +59,10 @@
 #define SAMPLE_SIZE 32
 static volatile uint8_t irtime[SAMPLE_SIZE+1];  // +1 for header
 static volatile uint8_t  irpos;  // pos in irtime
-//static volatile uint8_t  t0over; // overflow counts
-//static volatile uint32_t irkey;  // last IR key read
-//static volatile uint32_t irdata[2];
-//static volatile uint8_t irdatapos;
-////#define irkey0 irdata[0]
-//#define irkey1 irdata[1]
-//#define irkey irkey0
-
-static volatile uint32_t ird;  // = irdata[irdatapos];
+static volatile uint32_t ird; 
+static volatile uint32_t irdata[2];
+static volatile uint8_t irdatapos;
 static volatile uint16_t deltaTicks;
-//static volatile uint8_t tover;
 #define irkey ird
 
 static volatile uint8_t ir_ready ;
@@ -152,22 +116,37 @@ static void handle_sample()
     softuart_printHex16( (ird & 0xffff) );
     softuart_putc('\n');
 
+    irdata[irdatapos] = ird;
+    irdatapos++;
+    if( irdatapos==2 ) { 
+        ir_ready = 1;
+    }
     ird = 0;   // data used up
-    softuart_putc('$');
+    
+    //softuart_putc('$');
 }
 
 // get the last key read (if any) , return 0 if no key
 static uint32_t ir_getkey()
 {
     if( ir_ready ) { 
-        handle_sample();
+        //handle_sample();
         ir_ready = 0; // consume
+        irdatapos = 0;
+        softuart_puts("ir_ready:");
+        softuart_printHex16( irdata[0] >> 16 );
+        softuart_putc(',');
+        softuart_printHex16( irdata[0] & 0xffff );
+        softuart_putc(',');
+        softuart_printHex16( irdata[1] >> 16 );
+        softuart_putc(',');
+        softuart_printHex16( irdata[1] & 0xffff );
+        softuart_putc('\n');
     }
     uint32_t k = irkey;
     irkey = 0;
     return k;
 }
-
 
 // this is unneeded when Timer0 is /1024 and 32usec/tick
 // counts number of times TCNT0 overflows
@@ -175,7 +154,7 @@ static uint32_t ir_getkey()
 ISR(TIMER0_OVF_vect)
 {
     if( irpos> 0 ) {
-        ir_ready = 1;  // catches case for remotes
+        handle_sample(); //ir_ready = 1;  // catches case for remotes
     }
 
 }
@@ -210,7 +189,7 @@ ISR(PCINT0_vect)
     irpos++;  // now we're recording
 
     if( irpos == SAMPLE_SIZE ) {
-        ir_ready = 1;
+        handle_sample(); //ir_ready = 1;
     }
 
 }
