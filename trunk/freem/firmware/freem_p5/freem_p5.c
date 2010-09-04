@@ -1,5 +1,5 @@
 /**
- * freem_p4.c -- FreeM: BlinkM Battery Remote demonstration firmware
+ * freem_p5.c -- FreeM: BlinkM Battery Remote demonstration firmware
  *               Use with "BlinkM Battery Remote" (battir3) circuit
  * 
  * 2010 Tod E. Kurt, labs.thingm.com
@@ -368,13 +368,14 @@ static void handle_key(void)
         blinkm_setFadespeed( FADESPEED_DEFAULT );
         blinkm_playScript( 0,0 );
     }
-    else if( key == IRKEY_FREEM_DATA_ON ) { 
-        mode = MODE_DATA;
-        get_data();
-    }
-    else if( key == IRKEY_FREEM_DATA_OFF ) {
-        mode = MODE_OFF;
-    }
+    //else if( key == IRKEY_FREEM_DATA_ON ) { 
+    //    mode = MODE_DATA;
+    //   get_data();
+    //}
+    //else if( key == IRKEY_FREEM_DATA_OFF ) {
+    //    mode = MODE_OFF;
+    //
+}
 
     /*
     softuart_puts("m:"); softuart_printHex(mode); 
@@ -414,7 +415,7 @@ int main( void )
     LED_DDR |= _BV( LED_PIN );  // make output
 
     softuart_init();
-    softuart_puts("\nfreem_p4\n");
+    softuart_puts("\nfreem_p5\n");
 
     ir_init();
 
@@ -422,15 +423,15 @@ int main( void )
     
     softuart_puts("300ms? ");
     lastmillis = millis;
-    _delay_ms(300);     // just chill a bit, yo
-    softuart_printDec16( millis-lastmillis );   // debug timekeeping
+    _delay_ms(300);     // timing test, just chill a bit, yo
+    softuart_printDec16( millis-lastmillis );   // should be close to 300
 
     blinkm_turnOff();
 
     // a little hello fanfare
     statled_set(1);
-    for( int i=0;i<2; i++ ) {
-        softuart_puts("!");
+    for( int i=0;i<3; i++ ) {
+        softuart_puts("*");
         blinkm_setRGB( 0x09,0x09,0x09);
         _delay_ms(150);
         blinkm_setRGB( 0x00,0x00,0x00);
