@@ -4,35 +4,7 @@
  *
  */
 
-#include <string.h>  // memset
 
-#define IRKEY_FREEM_DATA_ON  0x07F7  // special addon escapes to datamode
-#define IRKEY_FREEM_DATA_OFF 0x07F8  // special addon escapes out datamode
-
-/*
-#define IRKEY_ONE    0x80  // 128
-#define IRKEY_TWO    0x81  // 129
-#define IRKEY_THREE  0x82  // 130
-#define IRKEY_FOUR   0x83  // 131
-#define IRKEY_FIVE   0x84  // 132
-#define IRKEY_SIX    0x85  // 133
-#define IRKEY_SEVEN  0x86  // 134
-#define IRKEY_EIGHT  0x87  // 135
-#define IRKEY_NINE   0x88  // 136
-#define IRKEY_ZERO   0x89  // 137
-#define IRKEY_ENTER  0x8b  // 139
-#define IRKEY_CHUP   0x90  // 144
-#define IRKEY_CHDN   0x91  // 145
-#define IRKEY_VOLUP  0x92  // 146
-#define IRKEY_VOLDN  0x93  // 147
-#define IRKEY_MUTE   0x94  // 148
-#define IRKEY_POWER  0x95  // 149
-
-#define IRKEY_TVVCR  0xa5  // 165
-#define IRKEY_PREVCH 0xbb  // 187
-#define IRKEY_MENU   0xe0  // 224
-#define IRKEY_ENTER2 0xe5  // 229
-*/
 #define DEBUG_IR 1
 
 // Determine Optimal Timer0 settings for single-byte usec sampling
@@ -91,36 +63,23 @@
 
 // there are 13 LOW transitions in a standard Sony IR packet
 //#define SAMPLE_SIZE 12
+// there are 32 LOW transisions (not counting header) in our 32-bit data packet
 #define SAMPLE_SIZE 32
-//static volatile uint8_t irtime[SAMPLE_SIZE+1];  // +1 for header
-static volatile uint8_t  irpos;  // pos in irtime
-static volatile uint32_t irdata[8];
-static volatile uint8_t irdatapos;
-#define irkey0 irdata[0]
-#define irkey1 irdata[1]
-#define irkey irkey0
+static volatile uint32_t ird;       // holder of built-up data 
+static volatile uint8_t  irspos;    // sampling position, counts bits in data
+static volatile uint32_t irdata[4]; // holds finished 'ird'
+static volatile uint8_t irdatapos;  // pos in irdata[], !0 means data
+#define irkey irdata[0] // backward compat
 
-static volatile uint32_t ird;  // = irdata[irdatapos];
-static volatile uint16_t deltaTicks;
-//static volatile uint8_t tover;
-//#define irkey ird
+static volatile uint16_t deltaTicks; // measured duration of LOW pulse
 
-//static volatile uint8_t ir_ready ;
-
-//call this to initialize hardware, enable global interrupts in mainline code
-//timer 0 (8 bit), normal mode, /256 clock, @8Mhz - 32us/bit,rollover in 8.192ms
-//#define t0_on()             TCCR0B = _BV(CS02)
-//timer 0 (8 bit), normal mode, /8 clock, @1Mhz - 8us/bit, rollover in 2.048ms
-//#define t0_on()             TCCR0B = _BV(CS01); //|_BV(CS00)
-//timer 0 (8 bit), normal mode, /64 clock, @1Mhz - 64us/bit,rollover in 16.384ms
-//#define t0_on()             TCCR0B = _BV(CS01); //|_BV(CS00)
 static void ir_init()
 {
     // FIXME: make IRPIN input? nahh
     PCMSK  = _BV(PCINT4);  // FIXME  // set up a pin change mask for PB3 only
     GIMSK |= _BV(PCIE);              // pin change interrupt enable
     TIMSK |= _BV(TOIE0);             // enable timer0 overflow interrupt    
-    irpos  = 0;
+    irspos  = 0;
     //t0over = 0;
     //TCCR0B = _BV(CS01);                // start timer0 with /8
     //TCCR0B = _BV(CS01) | _BV(CS00);    // start timer0 with /64 
@@ -128,44 +87,6 @@ static void ir_init()
     IR_PORT |= _BV(IR_RCV); // turn on internal pullup
     TCNT0=0;
 }
-/*
-static void ir_handle_sample_old()
-{
-#if DEBUG_IR >0
-    softuart_puts("irpos:");
-    softuart_printDec16(irpos);
-    softuart_putc(':');
-#endif
-
-    // it starts at 1 because irpos=0 contains header time
-    for( int i=1; i<irpos; i++) {   // convert bits to byte
-#if DEBUG_IR >0
-        softuart_printDec16(irtime[i]);
-        softuart_putc(',');
-#endif
-        if( irtime[i] > TICKS(SONY_ONE_MARK) ) {
-            ird = (ird<<1) | 1;
-        } else {
-            ird = (ird<<1) | 0;
-        }
-    }
-
-    //irdatapos++;
-    irpos = 0;  // not recording now
-    for( int i=0; i<SAMPLE_SIZE; i++) { irtime[i]=0; } // bzero()
-
-#if DEBUG_IR >0
-    softuart_putc('=');
-    softuart_printHex16( (ird >>16) );
-    softuart_printHex16( (ird & 0xffff) );
-#endif
-
-    irdata[0] = ird;
-    ird = 0;   // data used up
-    softuart_putc('.');
-    softuart_putc('\n');
-}
-*/
 
 // get the last key read (if any) , return 0 if no key
 static uint32_t ir_getkey()
@@ -181,12 +102,14 @@ static uint32_t ir_getkey()
     return 0;
 }
 
+// put finished, parsed data packet in buffer
+// called from interrupts
 static void ir_handle_sample()
 {
     irdata[irdatapos] = ird;
     irdatapos++;
     ird = 0;
-    irpos = 0;
+    irspos = 0;
 }
 
 // this is unneeded when Timer0 is /1024 and 32usec/tick
@@ -194,38 +117,37 @@ static void ir_handle_sample()
 // normally only ever gets to 1 on start burst
 ISR(TIMER0_OVF_vect)
 {
-    if( irpos> 0 ) { // if we're recording and T0 overflowed
+    if( irspos> 0 ) { // if we're recording and T0 overflowed, we're done
 #if DEBUG_IR >0
         softuart_putc('~');
 #endif
         ir_handle_sample();
     }
-
 }
 
 // connect to pin change interrupt masked for PBx only
 ISR(PCINT0_vect)
 {
     uint8_t in = (IR_PIN & _BV(IR_RCV));  // read in level
-    deltaTicks = TCNT0;          // get time since last pin change
-    TCNT0  = 0;                  // reset timer for next pass
+    deltaTicks = TCNT0;                   // get time since last pin change
+    TCNT0  = 0;                           // reset timer for next pass
     
     // first,  (FIXME: this is not in use)
-    if( deltaTicks > GAP_TICKS && irpos > 0 ) { // gap b/n codes & recording
+    if( deltaTicks > GAP_TICKS && irspos > 0 ) { // gap b/n codes & recording
 #if DEBUG_IR >0
         softuart_putc('#');  // (when will this happen?)
 #endif
         return;
     }
 
-    // don't record the constant ("high") pulses of the sony protocol
+    // don't record the constant (HIGH) pulses of the sony protocol
     if( in==0 ) {  // inverted logic
         return;
     }
     
-    // FIXME
-    if( deltaTicks > TICKS(SONY_HDR_MARK) ) {      // got start bit? 
-        irpos = 0;  // reset in case it's not
+    // check for header start
+    if( deltaTicks > TICKS(SONY_HDR_MARK) ) { 
+        irspos = 0;  // reset in case it's not
         ird = 0;
 #if DEBUG_IR >0
         softuart_putc('*');  // at the STARt (get it?)
@@ -234,15 +156,14 @@ ISR(PCINT0_vect)
     }
     
     // otherwise deltaTime is < SONY_HDR_MARK and thus maybe data
-    //irtime[irpos] = deltaTicks;
     if( deltaTicks > TICKS(SONY_ONE_MARK) ) {
         ird = (ird<<1) | 1;
     } else {
         ird = (ird<<1) | 0;
     }
-    irpos++;  // now we're recording
+    irspos++;  // now we're recording
 
-    if( irpos == SAMPLE_SIZE ) { // got the most bits we can store (32)
+    if( irspos == SAMPLE_SIZE ) { // got the most bits we can store (32)
 #if DEBUG_IR >0
         softuart_putc('^');  // burp i'm full
 #endif
@@ -250,3 +171,4 @@ ISR(PCINT0_vect)
     }
 
 }
+
