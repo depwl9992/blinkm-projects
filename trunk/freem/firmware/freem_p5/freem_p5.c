@@ -23,8 +23,7 @@
  *   0 - play script 0 on BlinkM
  * 
  * Data Mode:
- * - Sending keycode of 0x07F7 escapes into data mode
- * - Sending keycode of 0x07F8 escapes out of data mode
+ * 
  * - data format is: len,byte_0,byte_1,byte_2,...byte_len-1
  *
  * "BlinkM Battery Remote" - battir3 pcb layout
@@ -231,6 +230,9 @@ static void statled_toggle(void)
 // Attempt to have a litle datapath in there for sending blinkm cmds over IR
 // Doesn't work very reliably yet
 //
+// FIXME: this is outdated
+//
+/*
 static void get_data(void)
 {
     uint8_t i,j,d[8];                  // the data, at most 8 bytes
@@ -258,13 +260,12 @@ static void get_data(void)
 
 
  datadone:
-    /* // this takes too long, 2400 bps sucks
-    softuart_printHex(len);
-    softuart_putc('=');
-    for( i=0;i<len;i++) {
-        softuart_printHex( d[i] ); softuart_putc(',');
-    }
-    */
+    // this takes too long, 2400 bps sucks
+    //softuart_printHex(len);
+    //softuart_putc('=');
+    //for( i=0;i<len;i++) {
+    //    softuart_printHex( d[i] ); softuart_putc(',');
+    //}
     // now do something with that data
     if( len == 4 ) { 
         softuart_putc('*');
@@ -279,18 +280,20 @@ static void get_data(void)
     softuart_putc('!');
     goto datadone;  // so we can at least see the partial data
 }
+*/
 
 //
 // Parse the key presses from IR remote
 //
 static void handle_key(void)
 {
-    key = ir_getkey();
-    if( key==0 )  // no key
+    //key = ir_getkey();
+    key = ir_getdata();
+    if( key==0 ) {  // no
         return;
-
+    }
     // DEBUG
-    return;
+    //return;
 
 #if DEBUG > 1
     softuart_puts("k:"); softuart_printHex16( key ); softuart_putc('\n');
@@ -375,7 +378,6 @@ static void handle_key(void)
     //else if( key == IRKEY_FREEM_DATA_OFF ) {
     //    mode = MODE_OFF;
     //
-}
 
     /*
     softuart_puts("m:"); softuart_printHex(mode); 
@@ -450,7 +452,8 @@ int main( void )
     for( ; ; ) {
 
         handle_key();  // read a key, maybe change mode, or hue/bri
-    
+        //get_ir_data();
+
         // FIXME: this could be refactored to be more efficient
         if( mode == MODE_RANDMOOD ) { 
             if( millis - changemillis > MILLIS_MOOD ) {
