@@ -60,19 +60,24 @@
 #define IRKEY_MENU   0x070
 #define IRKEY_ENTER2 0xa70
 
-
 // there are 13 LOW transitions in a standard Sony IR packet
 //#define SAMPLE_SIZE 12
 // there are 32 LOW transisions (not counting header) in our 32-bit data packet
-#define SAMPLE_SIZE 32
+#define SAMPLE_SIZE_DATA 32
+#define SAMPLE_SIZE_SONY 12
+
+#define irdata_max 4
 static volatile uint32_t ird;       // holder of built-up data 
 static volatile uint8_t  irspos;    // sampling position, counts bits in data
-static volatile uint32_t irdata[4]; // holds finished 'ird'
+static volatile uint8_t  irspos_last; 
+static volatile uint32_t irdata[irdata_max]; // holds finished 'ird'
 static volatile uint8_t irdatapos;  // pos in irdata[], !0 means data
 #define irkey irdata[0] // backward compat
 
 static volatile uint16_t deltaTicks; // measured duration of LOW pulse
 
+// initialize pin change interrupt for IR reception
+// public
 static void ir_init()
 {
     // FIXME: make IRPIN input? nahh
@@ -88,7 +93,96 @@ static void ir_init()
     TCNT0=0;
 }
 
+// look for ir data
+static uint32_t ir_getdata(void)
+{
+#if 0
+    if( irdatapos > 0 ) {
+        softuart_putc('='); softuart_printDec16( irspos_last );
+        softuart_putc('\n');
+    }
+#endif
+
+    if( irdatapos > 0 && irspos_last  == SAMPLE_SIZE_SONY ) { // sony cmd
+        uint32_t d = irdata[0];
+        irdatapos = 0;
+        return d;
+    }
+
+    // best case: we've got two packets, a whole 8-byte data bundle
+    if( irdatapos > 0 && irspos_last == SAMPLE_SIZE_DATA ) {
+        /*
+        uint8_t* ba = (uint8_t*)((void*)(irdata));
+        for( int i=7; i>=0;i-- ) { 
+            softuart_printHex( ba[i] );
+            softuart_putc(',');
+        }
+        softuart_putc('\n');
+        */
+        uint32_t d0 = irdata[0];
+        uint32_t d1 = irdata[1];
+        if( ((d0 >>24) & 0xff) != 0x55 ) { // ignore if invalid start byte
+            irdatapos = 0; // nuke it, wait for next packet
+            return 0;
+        }
+        if( irdatapos == 2 ) {
+            // compute checksum
+            uint8_t c = 
+                (uint8_t)((d0 >>24)&0xff) + (uint8_t)((d0 >> 16)&0xff) + 
+                (uint8_t)((d0 >> 8)&0xff) + (uint8_t)((d0 >>  0)&0xff) + 
+                (uint8_t)((d1 >>24)&0xff) + (uint8_t)((d1 >> 16)&0xff) + 
+                (uint8_t)((d1 >> 8)&0xff); //
+            uint8_t c0 = (uint8_t)d1;
+
+            softuart_puts("dat:");
+            // otherwise, let's try it out
+            for( int i=0; i< 2; i++ ) {
+                uint32_t d = irdata[i];
+                softuart_printHex16( (d >>16) );
+                softuart_printHex16( (d & 0xffff) );
+                softuart_putc(',');
+            }
+            softuart_printHex(c);
+            if( c != c0 ) softuart_putc('!');
+            softuart_putc('\n');
+            irdatapos = 0; // consumed
+        }
+        else {
+            //softuart_putc('.');
+        }
+    }
+    return 0;
+}
+
+/*
+// look for ir data, parse if 
+static void ir_getdata_no(void)
+{
+    // best case: we've got two packets, a whole 8-byte data bundle
+    if( irdatapos >= 2 && irspos_last == SAMPLE_SIZE_DATA ) {
+        softuart_puts("gotdata:");
+        for( int i=0; i< 2; i++ ) {
+            uint32_t d = irdata[i];
+            softuart_printHex16( (d >>16) );
+            softuart_printHex16( (d & 0xffff) );
+            softuart_putc(',');
+        }
+        softuart_putc('\n');
+        irdatapos = 0;
+    }
+    
+    
+    //if( irdatapos > 0 ) { // we have some IR data
+    //    if( irspos_last == SAMPLE_SIZE_DATA ) { // last IR was data packet
+    //        if( irdatapos > 1 ) { // we have 2 packets
+    //        }
+    //}
+}
+*/
+
 // get the last key read (if any) , return 0 if no key
+// a simple version of ir_getdata
+// public
 static uint32_t ir_getkey()
 {
     if( irdatapos > 0 ) {
@@ -103,12 +197,14 @@ static uint32_t ir_getkey()
 }
 
 // put finished, parsed data packet in buffer
-// called from interrupts
-static void ir_handle_sample()
+// private, called from interrupts
+static void _ir_handle_sample()
 {
     irdata[irdatapos] = ird;
     irdatapos++;
+    if( irdatapos == irdata_max ) irdatapos = 0;  // just nuke and continue
     ird = 0;
+    irspos_last = irspos;
     irspos = 0;
 }
 
@@ -121,7 +217,7 @@ ISR(TIMER0_OVF_vect)
 #if DEBUG_IR >0
         softuart_putc('~');
 #endif
-        ir_handle_sample();
+        _ir_handle_sample();
     }
 }
 
@@ -157,17 +253,17 @@ ISR(PCINT0_vect)
     
     // otherwise deltaTime is < SONY_HDR_MARK and thus maybe data
     if( deltaTicks > TICKS(SONY_ONE_MARK) ) {
-        ird = (ird<<1) | 1;
+        ird = (ird<<1) | 1;  // parse MARK as a 1 bit
     } else {
-        ird = (ird<<1) | 0;
+        ird = (ird<<1) | 0;  // otherwise, parse as SPACE and thus a 0 bit
     }
-    irspos++;  // now we're recording
+    irspos++;  // go to next position (and irspos>0 means we're recording)
 
-    if( irspos == SAMPLE_SIZE ) { // got the most bits we can store (32)
+    if( irspos == SAMPLE_SIZE_DATA ) { // got the most bits we can store (32)
 #if DEBUG_IR >0
-        softuart_putc('^');  // burp i'm full
+        softuart_putc('|');  // burp i'm full
 #endif
-        ir_handle_sample();
+        _ir_handle_sample();
     }
 
 }
