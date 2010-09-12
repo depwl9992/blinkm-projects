@@ -22,13 +22,26 @@
  *   9 - bright white
  *   0 - play script 0 on BlinkM
  * 
- * Data Mode:
- * 
- * - data format is: len,byte_0,byte_1,byte_2,...byte_len-1
  *
- * "BlinkM Battery Remote" - battir3 pcb layout
- * ---------------------------------------------
- * attiny45       -- function
+ * CtrlM IR protocol:
+ * ------------------
+ * CtrlM Commands are 8 bytes long. 
+ * These 8 bytes are sent out as two 32-bit word packets, 
+ * using a modified 32-bit version of the Sony IR protocol.
+ * Consisting of the bytes:
+ * byte0 -- 0x55        - start byte
+ * byte1 -- freem_addr  -
+ * byte2 -- blinkm_addr -
+ * byte3 -- blinkm_cmd  - 
+ * byte4 -- blinkm_arg1 - blinkm arg1 (if not used, set to 0)
+ * byte5 -- blinkm_arg2 - blinkm arg2 (if not used, set to 0)
+ * byte6 -- blinkm_arg3 - blinkm arg3 (if not used, set to 0)
+ * byte7 -- checksum    - simple 8-bit sum of bytes 0-6
+ *
+ *
+ * FreeM ATtiny85 pinout
+ * ----------------------
+ * attiny85       -- function
  * pin 1 -- PB5   -- RESET
  * pin 2 -- PB3   -- PHOTOCELL  (unused)
  * pin 3 -- PB4   -- IRDETECT
@@ -42,6 +55,7 @@
 
 #include <avr/io.h>
 #include <avr/interrupt.h>
+#include <avr/eeprom.h>
 #include <util/delay.h>    // for _delay_ms()
 #include <stdint.h>        // for types like uint8_t, etc.
 #include <stdlib.h>        // for rand()
@@ -49,7 +63,8 @@
 // set DEBUG to 0 to disable all debug info and save code space
 // set DEBUG to 1 to enable serial debugging on pin 6 (PB1)
 // set DEBUG to 2 to enable serial logging off all keys received 
-#define DEBUG 2
+#define DEBUG 1
+#define DEBUG_IR 0
 
 #define LED_PIN  PB1
 #define LED_PORT PORTB
@@ -91,6 +106,8 @@
 
 #include "i2cmaster_bitbang.h"
 #include "irsony.h"
+
+
 
 
 //  The timing information for timer to fire periodically 
@@ -135,83 +152,15 @@ uint16_t changemillis;   // the last time we changed, for RANDMOOD, etc.
 // I2C address of blinkm, or 0 to address all blinkms
 uint8_t i2csendaddr = 0;
 
-//-----------------------------------------------------
-// utility funcs
-//
+// address of FreeM
+uint8_t freem_addr  = 0x80;
 
-// this is a really cheapie rand
-// using this instead of real rand() saves 300 bytes
-/*
-static uint8_t rand8bit(void)
-{
-    static int16_t rctx;
-    if( rctx == 0 ) rctx = 1234; // 123467;
-    int hi = (rctx<<1) / 123;
-    int lo = (rctx<<1) % 123;
-    int  x = 1687 * lo - 286 * hi;
-    rctx = x;
-    return x;
-}
-#define rand(x) rand8bit(x)
-*/
+uint8_t buf[8];
 
-//-----------------------------------------------------
-// blinkm funcs
-//
+#include "blinkm_funcs.h"
 
-static void blinkm_stopScript(void)
-{
-    i2c_start();
-    i2c_write((i2csendaddr<<1));  // FIXME: check return value
-    i2c_write('o');  
-    i2c_stop();
-}
-
-static void blinkm_sendCmd3( uint8_t c, uint8_t a1, uint8_t a2, uint8_t a3 )
-{
-    i2c_start();
-    i2c_write((i2csendaddr<<1));  // FIXME: check return value
-    i2c_write( c );  
-    i2c_write( a1 );       
-    i2c_write( a2 );       
-    i2c_write( a3 );       
-    i2c_stop();        
-}
-
-static void blinkm_setFadespeed( uint8_t f ) 
-{
-    i2c_start();
-    i2c_write((i2csendaddr<<1));  // FIXME: check return value
-    i2c_write('f');
-    i2c_write(f);
-    i2c_stop();    
-
-}
-static void blinkm_fadeToRGB( uint8_t r, uint8_t g, uint8_t b )
-{
-    blinkm_sendCmd3( 'c', r,g,b );
-}
-
-static void blinkm_fadeToHSB( uint8_t h, uint8_t s, uint8_t b )
-{
-    blinkm_sendCmd3( 'h', h,s,b );
-}
-
-static void blinkm_setRGB(  uint8_t r, uint8_t g, uint8_t b )
-{
-    blinkm_sendCmd3( 'n', r,g,b );
-}
-
-static void blinkm_playScript( uint8_t p, uint8_t n )
-{
-    blinkm_sendCmd3( 'p', p,0,n );
-}
-
-static void blinkm_turnOff(void)
-{
-    blinkm_stopScript();
-    blinkm_setRGB( 0,0,0 );
-}
+// address of this FreeM
+uint8_t  ee_freem_addr         EEMEM = 0;
 
 
 // -----------------------------------------------------
@@ -226,80 +175,49 @@ static void statled_toggle(void)
     LED_PORT ^= _BV(LED_PIN);
 }
 
-//
-// Attempt to have a litle datapath in there for sending blinkm cmds over IR
-// Doesn't work very reliably yet
-//
-// FIXME: this is outdated
-//
-/*
-static void get_data(void)
-{
-    uint8_t i,j,d[8];                  // the data, at most 8 bytes
-    uint16_t v,len=0;
-
-    j=200;
-    while( !(len = ir_getkey()) ) {      // length of packet
-        _delay_ms(1);
-        j--;
-        if( j == 0 )                     // FIXME: dumb timeout
-            goto dataerror;
-    }
-    len = (len>8) ? 8 : len;             // enforce bounds
-
-    for( i=0; i<len; i++ ) {  
-        j = 200;
-        while( !(v=ir_getkey()) ) {     // wait for key then store it
-            _delay_ms(1);
-            j--;
-            if( j == 0 )                // FIXME: dumb timeout
-                goto dataerror2;
-        }
-        d[i] = v;
-    }
-
-
- datadone:
-    // this takes too long, 2400 bps sucks
-    //softuart_printHex(len);
-    //softuart_putc('=');
-    //for( i=0;i<len;i++) {
-    //    softuart_printHex( d[i] ); softuart_putc(',');
-    //}
-    // now do something with that data
-    if( len == 4 ) { 
-        softuart_putc('*');
-        blinkm_sendCmd3( d[0], d[1],d[2],d[3] );
-    }
-    mode = MODE_OFF;
-    return;
-
- dataerror2:
-    softuart_putc('!');
- dataerror:
-    softuart_putc('!');
-    goto datadone;  // so we can at least see the partial data
-}
-*/
 
 //
 // Parse the key presses from IR remote
 //
 static void handle_key(void)
 {
-    //key = ir_getkey();
-    key = ir_getdata();
-    if( key==0 ) {  // no
+    key = ir_getdata( buf );
+    if( key == 0 ) {       // no IR data of any kind
         return;
     }
-    // DEBUG
-    //return;
+    else if( key == 1 ) {  // got CtrlM 8-byte packet
+#if DEBUG >0
+        softuart_puts("ctrlm:");
+        softuart_printHex( buf[1] ); softuart_putc(',');
+        softuart_printHex( buf[2] ); softuart_putc(',');
+        softuart_printHex( buf[3] ); softuart_putc(',');
+        softuart_printHex( buf[4] ); softuart_putc(',');
+        softuart_printHex( buf[5] ); softuart_putc(',');
+        softuart_printHex( buf[6] ); softuart_putc('\n');
+#else
+        statled_set(1);
+#endif
+        if( buf[2] == 0xff && buf[3] == 0xff ) {  // set freem addr cmd
+            freem_addr = buf[1];
+            eeprom_write_byte( &ee_freem_addr, freem_addr ); // write address
+        }
+        else if( buf[1] == freem_addr || buf[1] == 0 ) {
+
+            i2csendaddr = buf[2];
+            blinkm_sendCmd3( buf[3], buf[4], buf[5], buf[6] );
+        }
+#if DEBUG == 0
+        statled_set(0);
+#endif
+        return;  // done with data mode
+    }
+    // Otherwise, it's an RC code
 
 #if DEBUG > 1
     softuart_puts("k:"); softuart_printHex16( key ); softuart_putc('\n');
 #endif
 #if DEBUG==0
-        statled_toggle();
+    statled_set(1);
 #endif
 
     if( !(key == IRKEY_VOLUP || key == IRKEY_VOLDN) ) { 
@@ -385,6 +303,7 @@ static void handle_key(void)
     softuart_printHex(hue);  softuart_putc(',');
     softuart_printHex(bri);  softuart_putc('\n');
     */
+    statled_set(0);
 }
 
 // ------------------------------------------------------
@@ -423,19 +342,25 @@ int main( void )
 
     i2c_init();
     
+#if DEBUG > 0
     softuart_puts("300ms? ");
     lastmillis = millis;
     _delay_ms(300);     // timing test, just chill a bit, yo
     softuart_printDec16( millis-lastmillis );   // should be close to 300
+#endif
 
     blinkm_turnOff();
 
     // a little hello fanfare
-    statled_set(1);
     for( int i=0;i<3; i++ ) {
+#if DEBUG > 1
         softuart_puts("*");
+#else
+        statled_set(1);
+#endif
         blinkm_setRGB( 0x09,0x09,0x09);
         _delay_ms(150);
+        statled_set(0);
         blinkm_setRGB( 0x00,0x00,0x00);
         _delay_ms(150);
     }
@@ -517,3 +442,22 @@ ISR(TIMER1_OVF_vect)
 }
 
 
+//-----------------------------------------------------
+// utility funcs
+//
+
+// this is a really cheapie rand
+// using this instead of real rand() saves 300 bytes
+/*
+static uint8_t rand8bit(void)
+{
+    static int16_t rctx;
+    if( rctx == 0 ) rctx = 1234; // 123467;
+    int hi = (rctx<<1) / 123;
+    int lo = (rctx<<1) % 123;
+    int  x = 1687 * lo - 286 * hi;
+    rctx = x;
+    return x;
+}
+#define rand(x) rand8bit(x)
+*/
