@@ -5,8 +5,6 @@
  */
 
 
-#define DEBUG_IR 1
-
 // Determine Optimal Timer0 settings for single-byte usec sampling
 // ----------------------------------------------------------------
 // measure hdr/mark/space vals from remote on T0/64:  310, 157, 82 
@@ -66,6 +64,8 @@
 #define SAMPLE_SIZE_DATA 32
 #define SAMPLE_SIZE_SONY 12
 
+#define CTRLM_STARTBYTE 0x55
+
 #define irdata_max 4
 static volatile uint32_t ird;       // holder of built-up data 
 static volatile uint8_t  irspos;    // sampling position, counts bits in data
@@ -93,8 +93,11 @@ static void ir_init()
     TCNT0=0;
 }
 
-// look for ir data
-static uint32_t ir_getdata(void)
+// look for ir data, 
+// return 0 if no data, non-zero if data
+// data is returned in 8-byte buf, even if it doesn't pass checksum
+// public
+static uint32_t ir_getdata(uint8_t* buf)
 {
 #if 0
     if( irdatapos > 0 ) {
@@ -103,81 +106,44 @@ static uint32_t ir_getdata(void)
     }
 #endif
 
+    // we have data and it's Sony RC code sized
     if( irdatapos > 0 && irspos_last  == SAMPLE_SIZE_SONY ) { // sony cmd
-        uint32_t d = irdata[0];
+        uint32_t k = irdata[0];  // FIXME:!
         irdatapos = 0;
-        return d;
+        return k;
     }
 
-    // best case: we've got two packets, a whole 8-byte data bundle
+    // we've got some data and it's the size for a CtrlM protocol packet
     if( irdatapos > 0 && irspos_last == SAMPLE_SIZE_DATA ) {
         uint8_t* ba = (uint8_t*)irdata;
 
-        // debug
-        /*
-        for( int i=0; i<8; i++ ) { 
-            softuart_printHex( ba[i] );
-            softuart_putc(',');
-        }
-        softuart_putc('\n');
-        */
-
-        if( ba[0] != 0x55 ) { // ignore if invalid start byte
+        if( ba[0] != CTRLM_STARTBYTE ) { // ignore if invalid start byte
             irdatapos = 0; // nuke it, wait for next packet
             return 0;
         }
 
+        // we have TWO packets, of CtrlM packet size, so we have an entire 
         if( irdatapos == 2 ) {
+            for( int i=0; i<8; i++ ) { // copy to output array, be optimistic
+                buf[i] = ba[i];
+            }
             // compute checksum
-            uint8_t c = ba[7]; // sent checksum
+            uint8_t c = ba[7]; // checksum that was sent
             for( int i=0; i<7; i++ ) {
-                c -= ba[i];
+                c -= ba[i];    // should sum to zero
             }
-            //uint8_t c0 = ba[7]; // sent checksum 
+            irdatapos = 0;     // consumed
 
-            softuart_puts("dat:");
-            // otherwise, let's try it out
-            for( int i=0; i< 8; i++ ) {
-                softuart_printHex( ba[i] );
-                softuart_putc(',');
+            if( c == 0 ) {     // succesful!
+                return 1;
             }
-            softuart_printHex(c);
-            if( c != 0 ) softuart_putc('!');
-            softuart_putc('\n');
-            irdatapos = 0; // consumed
         }
-        else {
+        else { // irdatapos != 2
             //softuart_putc('.');
         }
     }
     return 0;
 }
-
-/*
-// look for ir data, parse if 
-static void ir_getdata_no(void)
-{
-    // best case: we've got two packets, a whole 8-byte data bundle
-    if( irdatapos >= 2 && irspos_last == SAMPLE_SIZE_DATA ) {
-        softuart_puts("gotdata:");
-        for( int i=0; i< 2; i++ ) {
-            uint32_t d = irdata[i];
-            softuart_printHex16( (d >>16) );
-            softuart_printHex16( (d & 0xffff) );
-            softuart_putc(',');
-        }
-        softuart_putc('\n');
-        irdatapos = 0;
-    }
-    
-    
-    //if( irdatapos > 0 ) { // we have some IR data
-    //    if( irspos_last == SAMPLE_SIZE_DATA ) { // last IR was data packet
-    //        if( irdatapos > 1 ) { // we have 2 packets
-    //        }
-    //}
-}
-*/
 
 // get the last key read (if any) , return 0 if no key
 // a simple version of ir_getdata
@@ -185,11 +151,13 @@ static void ir_getdata_no(void)
 static uint32_t ir_getkey()
 {
     if( irdatapos > 0 ) {
+#if DEBUG_IR >1
         softuart_puts("irdata0:");
         uint32_t d = irdata[0];
         softuart_printHex16( (d >>16) );
         softuart_printHex16( (d & 0xffff) );
         softuart_putc('\n');
+#endif
         irdatapos = 0; // say we're done with it
     }
     return 0;
