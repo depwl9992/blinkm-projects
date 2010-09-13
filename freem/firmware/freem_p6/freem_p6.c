@@ -41,15 +41,15 @@
  *
  * FreeM ATtiny85 pinout
  * ----------------------
- * attiny85       -- function
- * pin 1 -- PB5   -- RESET
+ * attiny85       -- function                         -- header
+ * pin 1 -- PB5   -- RESET                            --  R
  * pin 2 -- PB3   -- PHOTOCELL  (unused)
  * pin 3 -- PB4   -- IRDETECT
- * pin 4 -- GND   -- GND
- * pin 5 -- PB0   -- SDA/MOSI    -- 
- * pin 6 -- PB1   -- MISO        -- LED1 & serial TX out
- * pin 7 -- PB2   -- SCK/SCL     -- 
- * pin 8 -- VCC   -- VCC
+ * pin 4 -- GND   -- GND                              --  -
+ * pin 5 -- PB0   -- SDA/MOSI                         --  d 
+ * pin 6 -- PB1   -- MISO  -- LED1 / serial TX out    --  I
+ * pin 7 -- PB2   -- SCK/SCL                          --  c
+ * pin 8 -- VCC   -- VCC                              --  +
  *
  */
 
@@ -206,17 +206,17 @@ static void handle_key(void)
             i2csendaddr = buf[2];
             blinkm_sendCmd3( buf[3], buf[4], buf[5], buf[6] );
         }
-#if DEBUG == 0
+#if DEBUG >0
+#else 
         statled_set(0);
 #endif
         return;  // done with data mode
     }
     // Otherwise, it's an RC code
 
-#if DEBUG > 1
+#if DEBUG > 0
     softuart_puts("k:"); softuart_printHex16( key ); softuart_putc('\n');
-#endif
-#if DEBUG==0
+#else
     statled_set(1);
 #endif
 
@@ -226,6 +226,9 @@ static void handle_key(void)
     }
 
     if(      key == IRKEY_POWER ) {
+#if DEBUG > 0
+        softuart_puts("off\n");
+#endif
         mode = MODE_OFF;
         blinkm_turnOff();
     }
@@ -303,7 +306,10 @@ static void handle_key(void)
     softuart_printHex(hue);  softuart_putc(',');
     softuart_printHex(bri);  softuart_putc('\n');
     */
+#if DEBUG > 0
+#else
     statled_set(0);
+#endif
 }
 
 // ------------------------------------------------------
@@ -338,10 +344,13 @@ int main( void )
     softuart_init();
     softuart_puts("\nfreem_p6\n");
 
+    _delay_ms(300);  // wait for power to stabilize before doing i2c
+
     ir_init();
 
     i2c_init();
-    
+
+
 #if DEBUG > 0
     softuart_puts("300ms? ");
     lastmillis = millis;
@@ -353,14 +362,17 @@ int main( void )
 
     // a little hello fanfare
     for( int i=0;i<3; i++ ) {
-#if DEBUG > 1
+#if DEBUG > 0
         softuart_puts("*");
 #else
         statled_set(1);
 #endif
         blinkm_setRGB( 0x09,0x09,0x09);
         _delay_ms(150);
+#if DEBUG > 0
+#else
         statled_set(0);
+#endif
         blinkm_setRGB( 0x00,0x00,0x00);
         _delay_ms(150);
     }
