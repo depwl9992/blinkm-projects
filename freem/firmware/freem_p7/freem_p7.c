@@ -12,14 +12,14 @@
  * - MUTE      - 
  * - Num keys  - do something interesting
  *   1 - random slowly changing mood light (calc'd in FreeM)
- *   2 - fast random colors
+ *   2 - fast random colors, ch up/dn to change speed
  *   3 - flashing beacon, use ch up/dn to change hue, press 3 again to start
- *   4 - yellow
+ *   4 - fixed color, hold to change hue, vol/up dn to change brightness
  *   5 - aqua
  *   6 - purple
- *   7 - dim white
- *   8 - med white
- *   9 - bright white
+ *   7 - dim white, hold to change bright
+ *   8 - med white, hold to change bright
+ *   9 - bright white, hold to change bright
  *   0 - play script 0 on BlinkM
  * 
  *
@@ -140,11 +140,12 @@ enum {
     MODE_NUMKEY,
     MODE_HUE,
     MODE_PLAYSCRIPT,
-    MODE_DATA,
 };
 uint8_t mode = MODE_OFF; 
 
 uint16_t key;            // keypress
+uint16_t key_last;       // the previous keypress
+uint8_t keycnt;          // how long the current key has been held down
 uint8_t hue;             // current hue
 uint8_t bri;             // current brightness
 uint16_t changemillis;   // the last time we changed, for RANDMOOD, etc.
@@ -214,7 +215,16 @@ static void handle_key(void)
 #endif
         return;  // done with data mode
     }
+
     // Otherwise, it's an RC code
+
+    if( key == key_last ) {
+        keycnt++;
+    }
+    else {
+        keycnt = 0;
+    }
+    key_last = key;
 
 #if DEBUG > 0
     softuart_puts("k:"); softuart_printHex16( key ); softuart_putc('\n');
@@ -235,12 +245,12 @@ static void handle_key(void)
         blinkm_turnOff();
     }
     else if( key == IRKEY_CHUP ) {
-        mode = MODE_HUE;
+        //mode = MODE_HUE;
         if( bri==0 ) bri = 120;
         hue +=5;
     }
     else if( key == IRKEY_CHDN ) { 
-        mode = MODE_HUE;
+        //mode = MODE_HUE;
         if( bri==0 ) bri = 120;
         hue -=5;
     }
@@ -260,14 +270,21 @@ static void handle_key(void)
     }
     else if( key == IRKEY_TWO ) {
         mode = MODE_RANDFAST;
-        if( bri == 0 ) bri = 127;
+        if( bri == 0 ) bri = 127;  // FIXME: why is this here?
     }
     else if( key == IRKEY_THREE ) {
         mode = MODE_FLASH;
+        if( keycnt > 6 ) {  // reset on holding key
+            hue = 0;  
+            bri = 255;
+#if DEBUG > 0
+            softuart_puts("hue reset");
+#endif
+        }
     }
     else if( key == IRKEY_FOUR ) {
         mode = MODE_NUMKEY;
-        blinkm_fadeToRGB( 0xff,0xff,0x00 );
+        blinkm_fadeToHSB( hue, 0xff, bri );
     }
     else if( key == IRKEY_FIVE ) {
         mode = MODE_NUMKEY;
@@ -279,35 +296,26 @@ static void handle_key(void)
     }
     else if( key == IRKEY_SEVEN ) {
         mode = MODE_NUMKEY;
-        blinkm_fadeToRGB( 0x11,0x11,0x11 );
+        bri = 0x11;
+        blinkm_fadeToRGB( bri, bri, bri );
     }
     else if( key == IRKEY_EIGHT ) {
         mode = MODE_NUMKEY;
-        blinkm_fadeToRGB( 0x80,0x80,0x80 );
+        bri = 0x80;
+        blinkm_fadeToRGB( bri, bri, bri );
     }
     else if( key == IRKEY_NINE ) {
         mode = MODE_NUMKEY;
-        blinkm_fadeToRGB( 0xff,0xff,0xff );
+        blinkm_fadeToRGB( bri, bri, bri );
+        if( keycnt > 6 ) {  // make brighter on key hold
+            bri += 10;
+        }
     }
     else if( key == IRKEY_ZERO ) {
         mode = MODE_PLAYSCRIPT;
         blinkm_setFadespeed( FADESPEED_DEFAULT );
         blinkm_playScript( 0,0 );
     }
-    //else if( key == IRKEY_FREEM_DATA_ON ) { 
-    //    mode = MODE_DATA;
-    //   get_data();
-    //}
-    //else if( key == IRKEY_FREEM_DATA_OFF ) {
-    //    mode = MODE_OFF;
-    //
-
-    /*
-    softuart_puts("m:"); softuart_printHex(mode); 
-    softuart_puts(" hb:"); // print little summary
-    softuart_printHex(hue);  softuart_putc(',');
-    softuart_printHex(bri);  softuart_putc('\n');
-    */
 #if DEBUG > 0
 #else
     statled_set(0);
