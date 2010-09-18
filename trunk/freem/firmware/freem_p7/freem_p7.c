@@ -155,8 +155,7 @@ uint8_t mode = MODE_OFF;
 
 uint16_t key;            // keypress
 uint16_t key_last;       // the previous keypress
-//uint8_t  keycnt;         // how long the current key has been held down
-uint16_t keymillis;     
+uint16_t keymillis;      // last time a key was pressed
 
 uint8_t  hue = 0;        // current hue
 uint8_t  bri = 255;      // current brightness
@@ -249,14 +248,16 @@ static void handle_key(void)
 
     // Otherwise, it's an RC code
 
-    if( key == key_last ) {
-        //keycnt++;
-    } else {
+    uint16_t keymillisdiff = (millis-keymillis);
+    if( keymillisdiff > 5000 ) { // 5 sec, reset
         keymillis = millis;
-        //keycnt = 0;
+        keymillisdiff = 0;
+    }
+    if( key != key_last ) {
+        keymillis = millis;
     }
     key_last = key;
-    uint8_t keyheld = ((millis - keymillis) > KEYMILLIS_HOLD);
+    uint8_t keyheld = (keymillisdiff > KEYMILLIS_HOLD);
 
 #if DEBUG > 1
     softuart_puts("k:"); softuart_printHex16( key ); softuart_putc('\n');
