@@ -42,7 +42,7 @@
 #define IRKEY_FIVE   0x210
 #define IRKEY_SIX    0xa10
 #define IRKEY_SEVEN  0x610
-#define IRKEY_EIGHT  0x310
+#define IRKEY_EIGHT  0xe10
 #define IRKEY_NINE   0x110
 #define IRKEY_ZERO   0x910
 #define IRKEY_ENTER  0xa170 // FIXME

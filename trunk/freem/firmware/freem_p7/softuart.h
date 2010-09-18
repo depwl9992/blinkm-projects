@@ -1,7 +1,7 @@
 
 #include <avr/io.h>
+#include <avr/pgmspace.h>
 #include <util/delay.h>
-
 
 // edit these to match your implementation
 #ifndef _baudRate
@@ -57,6 +57,15 @@ static void softuart_puts(char* s)
       softuart_putc( *s++ );
    }
 }
+static void softuart_putsPROGMEM(const prog_char* s  )
+{
+  char c;
+  if(!s) return;
+  while((c = pgm_read_byte(s++)))
+      softuart_putc( c );
+}
+#define softuart_putsP(x) softuart_putsPROGMEM( PSTR(x) )
+
 // convert nibble to ascii
 static uint8_t softuart_hexAscii(uint8_t h)
 {
