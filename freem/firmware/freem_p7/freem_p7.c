@@ -15,7 +15,7 @@
  *   2 - fast random colors, ch up/dn to change speed
  *   3 - flashing beacon, use ch up/dn to change hue, press 3 again to start
  *   4 - fixed color, hold to change hue, vol/up dn to change brightness
- *   5 - aqua
+ *   5 - flash once
  *   6 - purple
  *   7 - dim white, hold to change bright
  *   8 - med white, hold to change bright
@@ -97,6 +97,7 @@
 #define softuart_init()
 #define softuart_putc(x)
 #define softuart_puts(x)
+#define softuart_putsP(x)
 #define softuart_printHex(x)
 #define softuart_printHex16(x)
 #endif
@@ -108,6 +109,10 @@
 #include "irsony.h"
 
 
+// I2C address of blinkm, or 0 to address all blinkms
+uint8_t i2csendaddr = 0;
+
+#include "blinkm_funcs.h"   // uses i2csendaddr
 
 
 //  The timing information for timer to fire periodically 
@@ -131,34 +136,39 @@ static uint16_t lastmillis;           // the previous time we did something
 #define MILLIS_MOOD  4000
 #define MILLIS_FAST   300
 
+//#define KEYCNT_HOLD  6   // number of 'keycnt's to be considered a hold press
+#define KEYMILLIS_HOLD  1000 // number of millis to be considered a hold press
+
 // the different modes FreeM can be in
 enum {
     MODE_OFF,
     MODE_RANDMOOD,
     MODE_RANDFAST,
     MODE_FLASH,
+    MODE_FLASHONCE,
     MODE_NUMKEY,
-    MODE_HUE,
+    MODE_WHITE,
+    MODE_HSB,
     MODE_PLAYSCRIPT,
 };
 uint8_t mode = MODE_OFF; 
 
 uint16_t key;            // keypress
 uint16_t key_last;       // the previous keypress
-uint8_t keycnt;          // how long the current key has been held down
-uint8_t hue;             // current hue
-uint8_t bri;             // current brightness
-uint16_t changemillis;   // the last time we changed, for RANDMOOD, etc.
+//uint8_t  keycnt;         // how long the current key has been held down
+uint16_t keymillis;     
 
-// I2C address of blinkm, or 0 to address all blinkms
-uint8_t i2csendaddr = 0;
+uint8_t  hue = 0;        // current hue
+uint8_t  bri = 255;      // current brightness
+
+uint16_t changemillis;   // the last time we changed, for RANDMOOD, etc.
 
 // address of FreeM
 uint8_t freem_addr  = 0x80;
 
+// buf to store copy of incoming data packet
 uint8_t buf[8];
 
-#include "blinkm_funcs.h"
 
 // address of this FreeM
 uint8_t  ee_freem_addr         EEMEM = 0;
@@ -176,6 +186,26 @@ static void statled_toggle(void)
     LED_PORT ^= _BV(LED_PIN);
 }
 
+// a little hello fanfare
+static void fanfare( uint8_t times ) 
+{
+    for( int i=0;i<times; i++ ) {
+#if DEBUG > 0
+        softuart_puts("*");
+#else
+        statled_set(1);
+#endif
+        blinkm_setRGB( 0x09,0x09,0x09);
+        _delay_ms(150);
+#if DEBUG > 0
+#else
+        statled_set(0);
+#endif
+        blinkm_setRGB( 0x00,0x00,0x00);
+        _delay_ms(150);
+    }
+}
+
 
 //
 // Parse the key presses from IR remote
@@ -188,7 +218,7 @@ static void handle_key(void)
     }
     else if( key == 1 ) {  // got CtrlM 8-byte packet
 #if DEBUG >0
-        softuart_puts("ctrlm:");
+        softuart_putsP("ctrlm:");
         //softuart_printHex( buf[0] ); softuart_putc(',');
         softuart_printHex( buf[1] ); softuart_putc(',');
         softuart_printHex( buf[2] ); softuart_putc(',');
@@ -203,6 +233,7 @@ static void handle_key(void)
         if( buf[2] == 0xff && buf[3] == 0xff ) {  // set freem addr cmd
             freem_addr = buf[1];
             eeprom_write_byte( &ee_freem_addr, freem_addr ); // write address
+            fanfare(5);  // let people know we did the deed
         }
         else if( buf[1] == freem_addr || buf[1] == 0 ) {
 
@@ -219,14 +250,15 @@ static void handle_key(void)
     // Otherwise, it's an RC code
 
     if( key == key_last ) {
-        keycnt++;
-    }
-    else {
-        keycnt = 0;
+        //keycnt++;
+    } else {
+        keymillis = millis;
+        //keycnt = 0;
     }
     key_last = key;
+    uint8_t keyheld = ((millis - keymillis) > KEYMILLIS_HOLD);
 
-#if DEBUG > 0
+#if DEBUG > 1
     softuart_puts("k:"); softuart_printHex16( key ); softuart_putc('\n');
 #else
     statled_set(1);
@@ -238,80 +270,96 @@ static void handle_key(void)
     }
 
     if(      key == IRKEY_POWER ) {
-#if DEBUG > 0
-        softuart_puts("off\n");
-#endif
+        softuart_putsP("off\n");
         mode = MODE_OFF;
         blinkm_turnOff();
     }
-    else if( key == IRKEY_CHUP ) {
-        //mode = MODE_HUE;
-        if( bri==0 ) bri = 120;
-        hue +=5;
+    else if( key == IRKEY_CHUP ) {    // increase hue, for current mode
+        if( mode == MODE_OFF ) mode = MODE_HSB;
+        hue+=2;
+        softuart_putsP("hue+:"); softuart_printHex(hue); softuart_putc('\n');
     }
-    else if( key == IRKEY_CHDN ) { 
-        //mode = MODE_HUE;
-        if( bri==0 ) bri = 120;
-        hue -=5;
+    else if( key == IRKEY_CHDN ) {    // decrease hue, for current mode
+        if( mode == MODE_OFF ) mode = MODE_HSB;
+        softuart_putsP("hue-:"); softuart_printHex(hue); softuart_putc('\n');
     }
-    else if( key == IRKEY_VOLUP ) { 
-        if( bri >= 250 )
-            bri = 255;
-        else bri += 10;
+    else if( key == IRKEY_VOLUP ) {   // increase brightness, for current mode
+        if( mode == MODE_OFF ) mode = MODE_HSB;
+        if( bri < 253 ) bri+=2;
+        softuart_putsP("bri+:"); softuart_printHex(bri); softuart_putc('\n');
     }
-    else if( key == IRKEY_VOLDN ) { 
-        if( bri < 5 )
-            bri = 0;
-        else bri -= 10;
+    else if( key == IRKEY_VOLDN ) {   // increase brightness, for current mode
+        if( mode == MODE_OFF ) mode = MODE_HSB;
+        if( bri > 2 ) bri-=2;
+        softuart_putsP("bri-:"); softuart_printHex(bri); softuart_putc('\n');
     }
-    else if( key == IRKEY_ONE ) {
+    else if( key == IRKEY_ONE ) {     // mode: random mood light 
+        softuart_putsP("moodlight\n");
         mode = MODE_RANDMOOD;
-        if( bri == 0 ) bri = 127;
+        if( bri == 0 ) bri = 255;     // fix brightness on startup
     }
-    else if( key == IRKEY_TWO ) {
+    else if( key == IRKEY_TWO ) {     // mode: fast random 
+        softuart_putsP("random\n");
         mode = MODE_RANDFAST;
-        if( bri == 0 ) bri = 127;  // FIXME: why is this here?
+        if( bri == 0 ) bri = 255;     // fix brightness on startup
     }
-    else if( key == IRKEY_THREE ) {
+    else if( key == IRKEY_THREE ) {   // mode: beacon flash
+        softuart_putsP("flash\n");
         mode = MODE_FLASH;
-        if( keycnt > 6 ) {  // reset on holding key
+        if( keyheld ) {  // reset hue/bri on holding key
             hue = 0;  
             bri = 255;
-#if DEBUG > 0
-            softuart_puts("hue reset");
-#endif
+            softuart_putsP("hue reset\n");
         }
     }
-    else if( key == IRKEY_FOUR ) {
-        mode = MODE_NUMKEY;
-        blinkm_fadeToHSB( hue, 0xff, bri );
+    else if( key == IRKEY_FOUR ) {    // mode: fixed color
+        softuart_putsP("hsb\n");
+        mode = MODE_HSB;
+        if( bri == 0 ) bri = 255;
+        if( keyheld ) {  // reset hue/bri on holding key
+            hue+=2; 
+        }
+        //blinkm_fadeToHSB( hue, 0xff, bri );
     }
-    else if( key == IRKEY_FIVE ) {
-        mode = MODE_NUMKEY;
-        blinkm_fadeToRGB( 0x00,0xff,0xff );
+    else if( key == IRKEY_FIVE ) {   // mode: single flash at color
+        softuart_putsP("flash once\n");
+        //mode = MODE_NUMKEY;
+        //blinkm_fadeToRGB( 0x00,0xff,0xff );
+        mode = MODE_FLASHONCE;
+        changemillis = 0;
+        if( keyheld ) {  // reset hue/bri on holding key
+            hue = 0;
+            bri = 255;
+            softuart_putsP("hue reset\n");
+        }
     }
-    else if( key == IRKEY_SIX ) {
+    else if( key == IRKEY_SIX ) {    // purple, no, need better
+        softuart_putsP("purple, fixme\n");
         mode = MODE_NUMKEY;
         blinkm_fadeToRGB( 0xff,0x00,0xff );
     }
-    else if( key == IRKEY_SEVEN ) {
-        mode = MODE_NUMKEY;
+    else if( key == IRKEY_SEVEN ) {  // low-white at vol up/dn brightness
+        softuart_putsP("low-white\n");
+        mode = MODE_WHITE;
         bri = 0x11;
         blinkm_fadeToRGB( bri, bri, bri );
     }
-    else if( key == IRKEY_EIGHT ) {
-        mode = MODE_NUMKEY;
+    else if( key == IRKEY_EIGHT ) {  // mid-white at vol up/dn brightness
+        softuart_putsP("mid-white\n");
+        mode = MODE_WHITE;
         bri = 0x80;
         blinkm_fadeToRGB( bri, bri, bri );
     }
-    else if( key == IRKEY_NINE ) {
-        mode = MODE_NUMKEY;
+    else if( key == IRKEY_NINE ) {   // low-white at vol up/dn brightness
+        softuart_putsP("white\n");
+        mode = MODE_WHITE;
         blinkm_fadeToRGB( bri, bri, bri );
-        if( keycnt > 6 ) {  // make brighter on key hold
-            bri += 10;
+        if( keyheld ) { // make brighter on key hold
+            bri += 10;               // will just wrap around
         }
     }
     else if( key == IRKEY_ZERO ) {
+        softuart_putsP("play0\n");
         mode = MODE_PLAYSCRIPT;
         blinkm_setFadespeed( FADESPEED_DEFAULT );
         blinkm_playScript( 0,0 );
@@ -320,6 +368,7 @@ static void handle_key(void)
 #else
     statled_set(0);
 #endif
+    key = 0;
 }
 
 // ------------------------------------------------------
@@ -352,7 +401,7 @@ int main( void )
     LED_DDR |= _BV( LED_PIN );  // make output
 
     softuart_init();
-    softuart_puts("\nfreem_p7\n");
+    softuart_putsP("\nfreem_p7\n");
 
     _delay_ms(300);  // wait for power to stabilize before doing i2c
 
@@ -370,25 +419,7 @@ int main( void )
 
     blinkm_turnOff();
 
-    // a little hello fanfare
-    for( int i=0;i<3; i++ ) {
-#if DEBUG > 0
-        softuart_puts("*");
-#else
-        statled_set(1);
-#endif
-        blinkm_setRGB( 0x09,0x09,0x09);
-        _delay_ms(150);
-#if DEBUG > 0
-#else
-        statled_set(0);
-#endif
-        blinkm_setRGB( 0x00,0x00,0x00);
-        _delay_ms(150);
-    }
-
-    hue = 0;
-    bri = 255;
+    fanfare( 3 );
 
     //mode = MODE_RANDMOOD;  // start out in moodlight mode
     lastmillis = 0-MILLIS_MOOD;
@@ -404,11 +435,12 @@ int main( void )
         // FIXME: this could be refactored to be more efficient
         if( mode == MODE_RANDMOOD ) { 
             if( millis - changemillis > MILLIS_MOOD ) {
-                changemillis = millis;
-                hue = rand();
-                softuart_puts("rhb:");
+                softuart_putsP("hsb:");
                 softuart_printHex(hue); softuart_putc(',');
                 softuart_printHex(bri); softuart_putc('\n');
+                changemillis = millis;
+                hue = rand();
+                softuart_putsP("rhb:");
             }
             blinkm_setFadespeed( FADESPEED_RANDMOOD );
             blinkm_fadeToHSB( hue, 255, bri );
@@ -423,18 +455,35 @@ int main( void )
             blinkm_setFadespeed( FADESPEED_RANDFAST );
             blinkm_fadeToHSB( hue, 255, bri );
         }
-        else if( mode == MODE_HUE ) {
+        else if( mode == MODE_WHITE ) {
+            blinkm_setFadespeed( FADESPEED_RANDMOOD );
+            blinkm_fadeToRGB( bri, bri, bri );
+        }
+        else if( mode == MODE_HSB ) {
             blinkm_setFadespeed( FADESPEED_RANDMOOD );
             blinkm_fadeToHSB( hue, 255, bri );
         }
         else if( mode == MODE_FLASH ) {
             if( millis - changemillis > MILLIS_FAST ) { 
                 changemillis = millis;
-                bri = (bri==255) ? 0:255;
+                bri = (bri==0) ? 255:0;
                 blinkm_setFadespeed( FADESPEED_RANDFAST );
                 blinkm_fadeToHSB( hue, 255, bri);
             }
         }
+        else if( mode == MODE_FLASHONCE ) {
+            if( changemillis == 0 ) { // start
+                blinkm_setFadespeed( FADESPEED_RANDFAST );
+                blinkm_fadeToHSB( hue, 255, bri);
+                changemillis = millis;;
+            }
+            else if( millis - changemillis > MILLIS_FAST ) {  //stop
+                blinkm_fadeToHSB( 0,0,0);
+                mode = MODE_OFF;
+                changemillis = 0;
+            }
+        }
+
         
     } // for
 }
