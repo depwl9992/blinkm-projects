@@ -136,8 +136,9 @@ static uint16_t lastmillis;           // the previous time we did something
 #define MILLIS_MOOD  4000
 #define MILLIS_FAST   300
 
-//#define KEYCNT_HOLD  6   // number of 'keycnt's to be considered a hold press
-#define KEYMILLIS_HOLD  1000 // number of millis to be considered a hold press
+#define KEYMILLIS_MIN      200
+#define KEYMILLIS_HOLD    2000 // millis to be considered a hold press
+//#define KEYMILLIS_TIMEOUT 4000 // millis to be considered a hold press
 
 // the different modes FreeM can be in
 enum {
@@ -154,8 +155,12 @@ enum {
 uint8_t mode = MODE_OFF; 
 
 uint16_t key;            // keypress
-uint16_t key_last;       // the previous keypress
+uint16_t keylast;       // the previous keypress
+uint16_t keylast_millis;
 uint16_t keymillis;      // last time a key was pressed
+uint8_t keycnt;
+uint8_t keyheld;
+
 
 uint8_t  hue = 0;        // current hue
 uint8_t  bri = 255;      // current brightness
@@ -216,7 +221,7 @@ static void handle_key(void)
         return;
     }
     else if( key == 1 ) {  // got CtrlM 8-byte packet
-#if DEBUG >0
+#if DEBUG >1
         softuart_putsP("ctrlm:");
         //softuart_printHex( buf[0] ); softuart_putc(',');
         softuart_printHex( buf[1] ); softuart_putc(',');
@@ -247,17 +252,33 @@ static void handle_key(void)
     }
 
     // Otherwise, it's an RC code
+    
+    //uint16_t keylastdelta = (millis - keylast_millis);
+    // okay
+    // we have these cases:
+    // no presses for long time, then keypress
+    // hold-down key, same key every 50ms or so
+    // press key, wait a little bit, press key again
+    // press key, press another key
 
-    uint16_t keymillisdiff = (millis-keymillis);
-    if( keymillisdiff > 5000 ) { // 5 sec, reset
-        keymillis = millis;
-        keymillisdiff = 0;
+    if( key == keylast ) {  // same key
+        if( (millis - keylast_millis) < KEYMILLIS_MIN ) { // a repeat
+            if( millis - keymillis > KEYMILLIS_HOLD ) { // since start of key
+                keyheld = 1;
+                //keymillis = millis;
+            }
+        }
+        else { // press, then press again   // or press and press again
+            keymillis = millis;
+        }
     }
-    if( key != key_last ) {
+    else {                  // a new key
         keymillis = millis;
+        keyheld = 0;
     }
-    key_last = key;
-    uint8_t keyheld = (keymillisdiff > KEYMILLIS_HOLD);
+
+    keylast = key;
+    keylast_millis = millis;
 
 #if DEBUG > 1
     softuart_puts("k:"); softuart_printHex16( key ); softuart_putc('\n');
@@ -318,6 +339,7 @@ static void handle_key(void)
         mode = MODE_HSB;
         if( bri == 0 ) bri = 255;
         if( keyheld ) {  // reset hue/bri on holding key
+            softuart_putc('+');
             hue+=2; 
         }
         //blinkm_fadeToHSB( hue, 0xff, bri );
@@ -422,7 +444,7 @@ int main( void )
 
     fanfare( 3 );
 
-    //mode = MODE_RANDMOOD;  // start out in moodlight mode
+    mode = MODE_RANDMOOD;  // start out in moodlight mode
     lastmillis = 0-MILLIS_MOOD;
     blinkm_fadeToHSB( rand(),255,bri );
 
@@ -431,23 +453,23 @@ int main( void )
     for( ; ; ) {
 
         handle_key();  // read a key, maybe change mode, or hue/bri
-        //get_ir_data();
+
+        uint16_t changemillisdiff = millis - changemillis;
 
         // FIXME: this could be refactored to be more efficient
         if( mode == MODE_RANDMOOD ) { 
             if( millis - changemillis > MILLIS_MOOD ) {
-                softuart_putsP("hsb:");
+                softuart_putsP("rhb:");
                 softuart_printHex(hue); softuart_putc(',');
                 softuart_printHex(bri); softuart_putc('\n');
                 changemillis = millis;
                 hue = rand();
-                softuart_putsP("rhb:");
             }
             blinkm_setFadespeed( FADESPEED_RANDMOOD );
             blinkm_fadeToHSB( hue, 255, bri );
         }
         else if( mode == MODE_RANDFAST ) { 
-            if( millis - changemillis > MILLIS_FAST ) { 
+            if( changemillisdiff > MILLIS_FAST ) { 
                 changemillis = millis;
                 hue = rand();
                 blinkm_setFadespeed( FADESPEED_RANDFAST );
@@ -465,7 +487,10 @@ int main( void )
             blinkm_fadeToHSB( hue, 255, bri );
         }
         else if( mode == MODE_FLASH ) {
-            if( millis - changemillis > MILLIS_FAST ) { 
+            if( changemillisdiff > MILLIS_FAST ) { 
+                softuart_putsP("ms:"); 
+                softuart_printHex16(changemillisdiff); softuart_putc(',');
+                softuart_printHex16(millis); softuart_putc('\n');
                 changemillis = millis;
                 bri = (bri==0) ? 255:0;
                 blinkm_setFadespeed( FADESPEED_RANDFAST );
@@ -473,12 +498,12 @@ int main( void )
             }
         }
         else if( mode == MODE_FLASHONCE ) {
-            if( changemillis == 0 ) { // start
+            if( changemillis == 0 ) {                         // start
                 blinkm_setFadespeed( FADESPEED_RANDFAST );
                 blinkm_fadeToHSB( hue, 255, bri);
-                changemillis = millis;;
+                changemillis = millis;
             }
-            else if( millis - changemillis > MILLIS_FAST ) {  //stop
+            else if( changemillisdiff > MILLIS_FAST ) {  //stop
                 blinkm_fadeToHSB( 0,0,0);
                 mode = MODE_OFF;
                 changemillis = 0;
