@@ -5,8 +5,8 @@
 ## General Flags
 TARGET = freem_p7
 
-MCU = attiny45
-#MCU = attiny85
+#MCU = attiny45
+MCU = attiny85
 #F_CPU = 16000000   # 16MHz on Arduino board
 F_CPU = 8000000    # internal osc
 #F_CPU = 1000000    # internal osc w/ clkdiv8
