@@ -115,7 +115,7 @@ uint8_t i2csendaddr = 0;
 #include "blinkm_funcs.h"   // uses i2csendaddr
 
 
-//  The timing information for timer to fire periodically 
+ //  The timing information for timer to fire periodically 
 #if F_CPU == 500000
 #define MILLIS_PER_T1OVF       4      // actually 4.1msec
 #endif
@@ -123,9 +123,8 @@ uint8_t i2csendaddr = 0;
 #define MILLIS_PER_T1OVF       2      // actually 4.048 msec
 #endif
 
-static volatile uint16_t millis = 0;  // current time, set by timer ISR 
-static volatile uint8_t t1ovf_count;  
-static uint16_t lastmillis;           // the previous time we did something
+static volatile uint32_t millis = 0;  // current time, set by timer ISR 
+//static volatile uint8_t t1ovf_count;  
 
 //-----------------------------------------------------
 
@@ -133,11 +132,11 @@ static uint16_t lastmillis;           // the previous time we did something
 #define FADESPEED_RANDMOOD    2
 #define FADESPEED_RANDFAST  100
 
-#define MILLIS_MOOD  4000
-#define MILLIS_FAST   300
+#define MILLIS_MOOD       4000
+#define MILLIS_FAST        300
 
 #define KEYMILLIS_MIN      200
-#define KEYMILLIS_HOLD    2000 // millis to be considered a hold press
+#define KEYMILLIS_HOLD    1200 // millis to be considered a hold press
 //#define KEYMILLIS_TIMEOUT 4000 // millis to be considered a hold press
 
 // the different modes FreeM can be in
@@ -154,6 +153,9 @@ enum {
 };
 uint8_t mode = MODE_OFF; 
 
+uint32_t changemillis;   // the last time we changed, for RANDMOOD, etc.
+uint32_t changemillisdiff;
+
 uint16_t key;            // keypress
 uint16_t keylast;       // the previous keypress
 uint16_t keylast_millis;
@@ -164,8 +166,6 @@ uint8_t keyheld;
 
 uint8_t  hue = 0;        // current hue
 uint8_t  bri = 255;      // current brightness
-
-uint16_t changemillis;   // the last time we changed, for RANDMOOD, etc.
 
 // address of FreeM
 uint8_t freem_addr  = 0x80;
@@ -195,7 +195,7 @@ static void fanfare( uint8_t times )
 {
     for( int i=0;i<times; i++ ) {
 #if DEBUG > 0
-        softuart_puts("*");
+        softuart_putc('*');
 #else
         statled_set(1);
 #endif
@@ -216,35 +216,42 @@ static void fanfare( uint8_t times )
 //
 static void handle_key(void)
 {
+    if( (millis - keylast_millis) > KEYMILLIS_HOLD ) {
+        keyheld = 0;
+    }
+
     key = ir_getdata( buf );
     if( key == 0 ) {       // no IR data of any kind
         return;
     }
     else if( key == 1 ) {  // got CtrlM 8-byte packet
-#if DEBUG >1
+#if DEBUG >0
         softuart_putsP("ctrlm:");
-        //softuart_printHex( buf[0] ); softuart_putc(',');
-        softuart_printHex( buf[1] ); softuart_putc(',');
-        softuart_printHex( buf[2] ); softuart_putc(',');
-        softuart_printHex( buf[3] ); softuart_putc(',');
-        softuart_printHex( buf[4] ); softuart_putc(',');
-        softuart_printHex( buf[5] ); softuart_putc(',');
-        softuart_printHex( buf[6] ); softuart_putc('\n');
-        //softuart_printHex( buf[7] ); softuart_putc('\n');
+        //softuart_printHex( buf[0] ); softuart_putc(',');  // start byte 0x55
+        softuart_printHex( buf[1] ); softuart_putc(',');    // freem_addr
+        softuart_printHex( buf[2] ); softuart_putc(',');    // blinkm_addr
+        softuart_printHex( buf[3] ); softuart_putc(',');    // blinkm_cmd
+        softuart_printHex( buf[4] ); softuart_putc(',');    // blinkm_arg1
+        softuart_printHex( buf[5] ); softuart_putc(',');    // blinkm_arg2
+        softuart_printHex( buf[6] ); softuart_putc(':');   // blinkm_arg3
+        //softuart_printHex( buf[7] ); softuart_putc('\n'); // checksum
 #else
         statled_set(1);
 #endif
+        mode = MODE_OFF;
         if( buf[2] == 0xff && buf[3] == 0xff ) {  // set freem addr cmd
+            softuart_putsP("new freem addr\n");
             freem_addr = buf[1];
             eeprom_write_byte( &ee_freem_addr, freem_addr ); // write address
             fanfare(5);  // let people know we did the deed
         }
         else if( buf[1] == freem_addr || buf[1] == 0 ) {
-
+            softuart_putsP("me!");
             i2csendaddr = buf[2];
             blinkm_sendCmd3( buf[3], buf[4], buf[5], buf[6] );
         }
 #if DEBUG >0
+        softuart_putc('\n');
 #else 
         statled_set(0);
 #endif
@@ -253,9 +260,7 @@ static void handle_key(void)
 
     // Otherwise, it's an RC code
     
-    //uint16_t keylastdelta = (millis - keylast_millis);
-    // okay
-    // we have these cases:
+    // okay, we have these cases:
     // no presses for long time, then keypress
     // hold-down key, same key every 50ms or so
     // press key, wait a little bit, press key again
@@ -265,14 +270,13 @@ static void handle_key(void)
         if( (millis - keylast_millis) < KEYMILLIS_MIN ) { // a repeat
             if( millis - keymillis > KEYMILLIS_HOLD ) { // since start of key
                 keyheld = 1;
-                //keymillis = millis;
             }
         }
-        else { // press, then press again   // or press and press again
+        else {             // or press and press again, reset key start time
             keymillis = millis;
         }
     }
-    else {                  // a new key
+    else {                  // a new key, reset
         keymillis = millis;
         keyheld = 0;
     }
@@ -299,31 +303,37 @@ static void handle_key(void)
     else if( key == IRKEY_CHUP ) {    // increase hue, for current mode
         if( mode == MODE_OFF ) mode = MODE_HSB;
         hue+=2;
-        softuart_putsP("hue+:"); softuart_printHex(hue); softuart_putc('\n');
+        softuart_putsP("h+:"); softuart_printHex(hue); softuart_putc('\n');
     }
     else if( key == IRKEY_CHDN ) {    // decrease hue, for current mode
         if( mode == MODE_OFF ) mode = MODE_HSB;
-        softuart_putsP("hue-:"); softuart_printHex(hue); softuart_putc('\n');
+        softuart_putsP("h-:"); softuart_printHex(hue); softuart_putc('\n');
     }
     else if( key == IRKEY_VOLUP ) {   // increase brightness, for current mode
         if( mode == MODE_OFF ) mode = MODE_HSB;
-        if( bri < 253 ) bri+=2;
-        softuart_putsP("bri+:"); softuart_printHex(bri); softuart_putc('\n');
+        if( bri < 253 ) bri+=3;
+        else bri = 255;
+        softuart_putsP("b+:"); softuart_printHex(bri); softuart_putc('\n');
     }
     else if( key == IRKEY_VOLDN ) {   // increase brightness, for current mode
         if( mode == MODE_OFF ) mode = MODE_HSB;
-        if( bri > 2 ) bri-=2;
-        softuart_putsP("bri-:"); softuart_printHex(bri); softuart_putc('\n');
+        if( bri > 2 ) bri-=3;
+        else bri = 0;
+        softuart_putsP("b-:"); softuart_printHex(bri); softuart_putc('\n');
     }
     else if( key == IRKEY_ONE ) {     // mode: random mood light 
-        softuart_putsP("moodlight\n");
+        softuart_putsP("mood\n");
         mode = MODE_RANDMOOD;
         if( bri == 0 ) bri = 255;     // fix brightness on startup
     }
     else if( key == IRKEY_TWO ) {     // mode: fast random 
-        softuart_putsP("random\n");
+        softuart_putsP("rand\n");
         mode = MODE_RANDFAST;
         if( bri == 0 ) bri = 255;     // fix brightness on startup
+        if( keyheld ) {  // reset hue/bri on holding key
+            hue = 0;  
+            bri = 255;
+        }
     }
     else if( key == IRKEY_THREE ) {   // mode: beacon flash
         softuart_putsP("flash\n");
@@ -331,7 +341,6 @@ static void handle_key(void)
         if( keyheld ) {  // reset hue/bri on holding key
             hue = 0;  
             bri = 255;
-            softuart_putsP("hue reset\n");
         }
     }
     else if( key == IRKEY_FOUR ) {    // mode: fixed color
@@ -345,30 +354,28 @@ static void handle_key(void)
         //blinkm_fadeToHSB( hue, 0xff, bri );
     }
     else if( key == IRKEY_FIVE ) {   // mode: single flash at color
-        softuart_putsP("flash once\n");
-        //mode = MODE_NUMKEY;
-        //blinkm_fadeToRGB( 0x00,0xff,0xff );
+        softuart_putsP("flash1\n");
         mode = MODE_FLASHONCE;
         changemillis = 0;
         if( keyheld ) {  // reset hue/bri on holding key
             hue = 0;
             bri = 255;
-            softuart_putsP("hue reset\n");
         }
     }
-    else if( key == IRKEY_SIX ) {    // purple, no, need better
-        softuart_putsP("purple, fixme\n");
-        mode = MODE_NUMKEY;
-        blinkm_fadeToRGB( 0xff,0x00,0xff );
+    else if( key == IRKEY_SIX ) {   
+        softuart_putsP("rand1\n");
+        mode = MODE_HSB;
+        bri = rand();
+        hue = rand();
     }
     else if( key == IRKEY_SEVEN ) {  // low-white at vol up/dn brightness
-        softuart_putsP("low-white\n");
+        softuart_putsP("lwhite\n");
         mode = MODE_WHITE;
         bri = 0x11;
         blinkm_fadeToRGB( bri, bri, bri );
     }
     else if( key == IRKEY_EIGHT ) {  // mid-white at vol up/dn brightness
-        softuart_putsP("mid-white\n");
+        softuart_putsP("mwhite\n");
         mode = MODE_WHITE;
         bri = 0x80;
         blinkm_fadeToRGB( bri, bri, bri );
@@ -428,14 +435,16 @@ int main( void )
 
     _delay_ms(300);  // wait for power to stabilize before doing i2c
 
+    // load up our address
+    freem_addr = eeprom_read_byte( &ee_freem_addr );
+    softuart_putsP("addr:"); softuart_printHex(freem_addr);softuart_putc('\n');
+
     ir_init();
 
     i2c_init();
 
-
-#if DEBUG > 0
+#if DEBUG > 1
     softuart_puts("300ms? ");
-    lastmillis = millis;
     _delay_ms(300);     // timing test, just chill a bit, yo
     softuart_printDec16( millis-lastmillis );   // should be close to 300
 #endif
@@ -445,8 +454,7 @@ int main( void )
     fanfare( 3 );
 
     mode = MODE_RANDMOOD;  // start out in moodlight mode
-    lastmillis = 0-MILLIS_MOOD;
-    blinkm_fadeToHSB( rand(),255,bri );
+    changemillis = millis - 2*MILLIS_MOOD;
 
 
     // loop forever 
@@ -454,11 +462,11 @@ int main( void )
 
         handle_key();  // read a key, maybe change mode, or hue/bri
 
-        uint16_t changemillisdiff = millis - changemillis;
+        changemillisdiff = millis - changemillis;
 
         // FIXME: this could be refactored to be more efficient
         if( mode == MODE_RANDMOOD ) { 
-            if( millis - changemillis > MILLIS_MOOD ) {
+            if( changemillisdiff > MILLIS_MOOD ) {
                 softuart_putsP("rhb:");
                 softuart_printHex(hue); softuart_putc(',');
                 softuart_printHex(bri); softuart_putc('\n');
@@ -492,7 +500,7 @@ int main( void )
                 softuart_printHex16(changemillisdiff); softuart_putc(',');
                 softuart_printHex16(millis); softuart_putc('\n');
                 changemillis = millis;
-                bri = (bri==0) ? 255:0;
+                bri = (keyheld) ? 255 : (bri==0) ? 255:0;
                 blinkm_setFadespeed( FADESPEED_RANDFAST );
                 blinkm_fadeToHSB( hue, 255, bri);
             }
