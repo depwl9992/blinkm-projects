@@ -63,7 +63,7 @@
 // set DEBUG to 0 to disable all debug info and save code space
 // set DEBUG to 1 to enable serial debugging on pin 6 (PB1)
 // set DEBUG to 2 to enable serial logging off all keys received 
-#define DEBUG 1
+#define DEBUG 0
 #define DEBUG_IR 0
 
 #define LED_PIN  PB1
@@ -101,8 +101,6 @@
 #define softuart_printHex(x)
 #define softuart_printHex16(x)
 #endif
-
-//#include "softuart_util.h"
 
 
 #include "i2cmaster_bitbang.h"
@@ -238,25 +236,29 @@ static void handle_key(void)
 #else
         statled_set(1);
 #endif
+
         mode = MODE_OFF;
-        if( buf[2] == 0xff && buf[3] == 0xff ) {  // set freem addr cmd
+        // set freem addr cmd
+        if( buf[2] == 0xff && buf[3] == 0xff ) {  
             softuart_putsP("new freem addr\n");
             freem_addr = buf[1];
             eeprom_write_byte( &ee_freem_addr, freem_addr ); // write address
             fanfare(5);  // let people know we did the deed
         }
+        // check freem addr to see if its mine or broadcast
         else if( buf[1] == freem_addr || buf[1] == 0 ) {
             softuart_putsP("me!");
             i2csendaddr = buf[2];
             blinkm_sendCmd3( buf[3], buf[4], buf[5], buf[6] );
         }
+
 #if DEBUG >0
         softuart_putc('\n');
 #else 
         statled_set(0);
 #endif
         return;  // done with data mode
-    }
+    } // if( key == 1 )
 
     //
     // Otherwise, it's an RC code
@@ -274,12 +276,10 @@ static void handle_key(void)
             }
         }
         else {             // or press and press again, reset key start time
-            softuart_putc('K');
             keymillis = millis;
         }
     }
     else {                  // a new key, reset
-        softuart_putc('k');
         keymillis = millis;
         keyheld = 0;
     }
@@ -358,9 +358,14 @@ static void handle_key(void)
             softuart_putc('+');
             hue+=2; 
         }
-        //blinkm_fadeToHSB( hue, 0xff, bri );
     }
-    else if( key == IRKEY_FIVE ) {   // mode: single flash at color
+    else if( key == IRKEY_FIVE ) {     // random color change  
+        softuart_putsP("rand1\n");
+        mode = MODE_HSB;
+        bri = rand();
+        hue = rand();
+    }
+    else if( key == IRKEY_SIX ) {   // mode: single flash at color
         softuart_putsP("flash1\n");
         mode = MODE_FLASHONCE;
         changemillis = 0;
@@ -369,16 +374,10 @@ static void handle_key(void)
             bri = 255;
         }
     }
-    else if( key == IRKEY_SIX ) {     // random color change  
-        softuart_putsP("rand1\n");
-        mode = MODE_HSB;
-        bri = rand();
-        hue = rand();
-    }
     else if( key == IRKEY_SEVEN ) {  // low-white at vol up/dn brightness
         softuart_putsP("lwhite\n");
         mode = MODE_WHITE;
-        bri = 0x11;
+        bri = 0x01;
         blinkm_fadeToRGB( bri, bri, bri );
     }
     else if( key == IRKEY_EIGHT ) {  // mid-white at vol up/dn brightness
