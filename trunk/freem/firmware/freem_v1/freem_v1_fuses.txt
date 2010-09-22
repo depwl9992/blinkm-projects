@@ -1,0 +1,8 @@
+Fuse settings "FreeM_v1"  -- 2010915, Tod E. Kurt, ThingM.com
+------------------------
+MCU = attiny85
+
+LFUSE=0xE2
+HFUSE=0xDD
+EFUSE=0xFE
+
