@@ -83,6 +83,7 @@ AVRDUDE_FLAGS += $(AVRDUDE_VERBOSE)
 AVRDUDE_FLAGS += $(AVRDUDE_ERASE_COUNTER)
 
 
+PKGDATE = `date +%Y%m%d`
 
 ## Build
 all: $(TARGET).elf $(TARGET).hex $(TARGET).eep $(TARGET).lss size
@@ -113,7 +114,7 @@ packaging:
 	mkdir -p $(TARGET)_$(PKGDATE)
 	cp -f $(TARGET).hex $(TARGET)_$(PKGDATE)/$(TARGET)_$(PKGDATE).hex
 	cp -f $(TARGET).eep $(TARGET)_$(PKGDATE)/$(TARGET)_$(PKGDATE).eep
-	cp -f $(TARGET)_fuse.txt $(TARGET)_$(PKGDATE)
+	cp -f $(TARGET)_fuse.txt $(TARGET)_$(PKGDATE)/$(TARGET)_fuse_$(PKGDATE).txt
 	zip -r $(TARGET)_$(PKGDATE).zip $(TARGET)_$(PKGDATE)
 
 # Program the device.  
