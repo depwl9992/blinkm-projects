@@ -108,6 +108,13 @@ size: ${TARGET}.elf
 	@echo
 	@avr-size -C --mcu=${MCU} ${TARGET}.elf
 
+packaging:
+	echo "making $(TARGET)_$(PKGDATE)"
+	mkdir -p $(TARGET)_$(PKGDATE)
+	cp -f $(TARGET).hex $(TARGET)_$(PKGDATE)/$(TARGET)_$(PKGDATE).hex
+	cp -f $(TARGET).eep $(TARGET)_$(PKGDATE)/$(TARGET)_$(PKGDATE).eep
+	cp -f $(TARGET)_fuse.txt $(TARGET)_$(PKGDATE)
+	zip -r $(TARGET)_$(PKGDATE).zip $(TARGET)_$(PKGDATE)
 
 # Program the device.  
 program: $(TARGET).hex $(TARGET).eep
