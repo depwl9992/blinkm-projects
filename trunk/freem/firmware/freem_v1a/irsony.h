@@ -123,12 +123,12 @@ static uint32_t ir_getdata(uint8_t* buf)
     // we've got some data and it's the size for a CtrlM protocol packet
     if( irdatapos > 0 && irspos_last == SAMPLE_SIZE_DATA ) {
         uint8_t* ba = (uint8_t*)irdata;
-        /*         // debug
+#if DEBUG > 2        
         for( int i=0; i<8; i++ ) {
             softuart_printHex( ba[7-i] ); softuart_putc(',');
         }
         softuart_putc('\n');
-        */
+#endif        
         
         // was ba[0] but data got swizzled from doing a uint64_t on it
         if( ba[7] != CTRLM_STARTBYTE ) { // ignore if invalid start byte
@@ -183,6 +183,7 @@ static uint32_t ir_getkey()
 static void _ir_handle_sample()
 {
     irdata[irdatapos] = ird;
+
     irdatapos++;
     if( irdatapos == irdata_max ) irdatapos = 0;  // just nuke and continue
     ird = 0;

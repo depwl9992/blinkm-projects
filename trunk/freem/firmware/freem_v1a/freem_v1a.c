@@ -42,9 +42,21 @@
  *                  buf[0], buf[1],     buf[2],      [3],  [4], [5], [6],  [7]
  *  std command:     {0x55,  freem_addr, blinkm_addr, cmd,  a1,  a2,  a3,   chk}
  *  write freemaddr: {0x55,  freem_addr, 0xff,        0xff, na,  na,  na,   chk}
- *  set color spot:  {0x55,  freem_addr, 0xfe,        pos,   r,   g,   b,   chk}
- *  play color spot: {0x55,  freem_addr, 0xfd,        pos,  na,  na,  na,   chk}
+ *  set color spot:  {0x55,  freem_addr, 0xfe,        pos,  a1,  a2,  a3,   chk}
+ *  play color spot: {0x55,  freem_addr, 0xfd,        pos, cmd,  na,  na,   chk}
  *
+ *
+ * Some LinkM.sh commands to try: (0x21 == '!'):
+ *
+ * Fade to purple (0xff,0x00,0xff):
+ * ./linkm.sh -v --cmd "0x21,0x55,0,0,'c',0xff,0x00,0xff,0xb6" 
+ *
+ * Set colorspot 3 to 0x00,0xff,0xff:
+ * ./linkm.sh -v --cmd "0x21,0x55,0,0xfe,3,0x00,0xff,0xff,0x54" 
+ *
+ * Play colorspot 3: (two ways)
+ * ./linkm.sh -v --cmd "0x21,0x55,0,0xfd,3,0x00,0x00,0x00,0x55" 
+ * ./linkm.sh -v --cmd "0x21,0x55,0,0xfd,3,'c',0x00,0x00,0xb8" 
  *
  * FreeM ATtiny85 pinout
  * ----------------------
@@ -183,9 +195,18 @@ typedef struct _rgb_t {
     uint8_t b;
 } rgb_t;
 
+/*  no, cannot do this because ctrlm IR protocol doesn't have enough bytes
+typedef struct _blinkm_cmd_t {
+    uint8_t c;
+    uint8_t a1;
+    uint8_t a2;
+    uint8_t a3;
+} blinkm_cmd_t;
+*/
+
 // address of this FreeM
-uint8_t  ee_freem_addr         EEMEM = 0;
-rgb_t ee_rgbspots[16] EEMEM;
+uint8_t  ee_freem_addr         EEMEM = 0x7d;  // FIXME: make this match freem_ad
+rgb_t ee_colorspots[16] EEMEM;
 
 
 // -----------------------------------------------------
@@ -244,7 +265,7 @@ static void handle_key(void)
         softuart_printHex( buf[3] ); softuart_putc(',');    // blinkm_cmd
         softuart_printHex( buf[4] ); softuart_putc(',');    // blinkm_arg1
         softuart_printHex( buf[5] ); softuart_putc(',');    // blinkm_arg2
-        softuart_printHex( buf[6] ); softuart_putc(':');   // blinkm_arg3
+        softuart_printHex( buf[6] ); softuart_putc(':');    // blinkm_arg3
         //softuart_printHex( buf[7] ); softuart_putc('\n'); // checksum
 #else
         statled_set(1);
@@ -263,22 +284,40 @@ static void handle_key(void)
         // check freem addr to see if its mine or broadcast
         else if( buf[1] == freem_addr || buf[1] == 0 ) {  // me or broadcast
             
-            // set color slot 
+            // set colorspot 
             if( buf[2] == 0xfe ) {       // 0xfe == set color slot freem cmd
-                softuart_putsP("set color slot");
                 uint8_t pos = buf[3];
                 rgb_t spot;  
                 spot.r = buf[4]; spot.g = buf[5]; spot.b = buf[6];
-                eeprom_write_block( &(ee_rgbspots[pos]), &spot, sizeof(rgb_t));
+#if DEBUG >0
+                softuart_putsP("set colorspot");
+                softuart_printHex(pos);
+                softuart_putc(' ');
+                softuart_printHex( (int) &(ee_colorspots[pos]) );
+                softuart_printHex(spot.r);
+                softuart_printHex(spot.g);
+                softuart_printHex(spot.b);
+#endif
+                eeprom_write_block( &spot, &(ee_colorspots[pos]),sizeof(rgb_t));
                 // FIXME: flash stat LED in recognition
             }
-            // play color slot
+            // play colorspot
             else if( buf[2] == 0xfd ) {  // 0xfd == play color slot freem cmd
-                softuart_putsP("play color slot");
-                uint8_t pos = buf[3];                
+                uint8_t pos = buf[3];
+                uint8_t cmd = buf[4]; 
                 rgb_t spot;
-                eeprom_read_block( &spot, &(ee_rgbspots[pos]), sizeof(rgb_t) );
-                blinkm_sendCmd3( 'c', spot.r, spot.g, spot.b );
+                eeprom_read_block(  &spot, &(ee_colorspots[pos]),sizeof(rgb_t));
+#if DEBUG >0 
+                softuart_putsP("play colorspot");
+                softuart_printHex(pos); 
+                softuart_putc(' '); 
+                softuart_printHex( (int) &(ee_colorspots[pos]) );      
+                softuart_printHex(spot.r);
+                softuart_printHex(spot.g);
+                softuart_printHex(spot.b);
+#endif
+                if( cmd==0 ) { cmd = 'c'; }
+                blinkm_sendCmd3( cmd, spot.r, spot.g, spot.b );
             }
             else { // normal cmd
                 softuart_putsP("me!");
