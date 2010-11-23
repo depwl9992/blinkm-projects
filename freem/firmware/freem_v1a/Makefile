@@ -26,7 +26,8 @@ COMMON = -mmcu=$(MCU)
 
 ## Compile options common for all C compilation units.
 CFLAGS = $(COMMON)
-CFLAGS += -Wall -gdwarf-2 -std=gnu99
+CFLAGS += -Wall -gdwarf-2 -std=gnu99 
+CFLAGS += -Wno-unused-function
 #CFLAGS += -DQT_NUM_CHANNELS=4 -DQT_DELAY_CYCLES=1 -D_QTOUCH_ -DSNSK=B  -DSNS=B
 CFLAGS += -DF_CPU=$(F_CPU)
 CFLAGS += -Os -funsigned-char -funsigned-bitfields -fpack-struct -fshort-enums
