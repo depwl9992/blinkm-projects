@@ -125,6 +125,9 @@ program: $(TARGET).hex $(TARGET).eep
 erase:
 	$(AVRDUDE) $(AVRDUDE_FLAGS) -e -U lfuse:w:$(LFUSE):m -U hfuse:w:$(HFUSE):m -U efuse:w:$(EFUSE):m
 
+eeprom_read:
+	$(AVRDUDE) $(AVRDUDE_FLAGS) -U eeprom:r:-:i
+
 ## Clean target
 #.PHONY: clean
 clean:
