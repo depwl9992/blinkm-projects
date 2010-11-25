@@ -38,6 +38,7 @@
  * byte6 -- blinkm_arg3 - blinkm arg3 (if not used, set to 0)
  * byte7 -- checksum    - simple 8-bit sum of bytes 0-6
  *
+ *
  * buffer layout is like:  (na == don't matter, set to zero)
  *                  buf[0], buf[1],     buf[2],      [3],  [4], [5], [6],  [7]
  *  std command:     {0x55,  freem_addr, blinkm_addr, cmd,  a1,  a2,  a3,   chk}
@@ -54,9 +55,17 @@
  * Set colorspot 3 to 0x00,0xff,0xff:
  * ./linkm.sh -v --cmd "0x21,0x55,0,0xfe,3,0x00,0xff,0xff,0x54" 
  *
- * Play colorspot 3: (two ways)
+ * Play colorspot 3: 2nd way gives command, could be 'p'lay script
  * ./linkm.sh -v --cmd "0x21,0x55,0,0xfd,3,0x00,0x00,0x00,0x55" 
  * ./linkm.sh -v --cmd "0x21,0x55,0,0xfd,3,'c',0x00,0x00,0xb8" 
+ *
+ * Can also do: (with new CtrlM firmware that supports '^' and '*', 0x2a='*')
+ * ./linkm.sh -v --cmd "0x2a,3,'p',0" 
+ *
+ * And, Set Colorspot:
+ * ./linkm.sh -v --cmd "0x5e,3,0x98,0x76,0x54"  // with new ctrlm '^' == 0x53
+ * ./linkm.sh -v --cmd "0x21,0x55,0,0xfe,3,0x98,0x76,0x54,0xb8" // by hand
+ * 
  *
  * FreeM ATtiny85 pinout
  * ----------------------
