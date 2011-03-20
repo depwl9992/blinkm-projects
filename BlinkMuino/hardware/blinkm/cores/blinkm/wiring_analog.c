@@ -47,8 +47,23 @@ int analogRead(uint8_t pin)
 	// to 0 (the default).
 //	ADMUX = (analog_reference << 6) | (pin & 0x3f); // more MUX
 // sapo per tiny45
-	ADMUX = pin & 0x3f;
+	//ADMUX = pin & 0x3f;
 
+    // from tod
+    // map arduino "pin" to ADC MUX value
+    // from Table 20-3 in ATtiny45 datasheet
+    if(        pin == PB5 ) {
+        ADMUX = 0x00;
+    } else if( pin == PB2 ) { 
+        ADMUX = 0x01;
+    } else if( pin == PB4 ) {
+        ADMUX = 0x02;
+    } else if( pin == PB3 ) {
+        ADMUX = 0x03;
+    } else {
+        ADMUX = pin;  // in case people want to select temp sensor or whatever
+    }
+    
 	// without a delay, we seem to read from the wrong channel
 	//delay(1);
 
@@ -89,18 +104,18 @@ if (digitalPinToTimer(pin) == TIMER0A) {
 	  digitalWrite(pin, LOW);
     } else {
 	  // connect pwm to pin on timer 0, channel A
-	  sbi(TCCR0A, COM0A1);
+      sbi(TCCR0A, COM0A1);  
 	  // set pwm duty
-	  OCR0A = val;      
+	  OCR0A = val;       // aka PB0
     }
   } else if (digitalPinToTimer(pin) == TIMER1) {
     if (val == 0) {
 	  digitalWrite(pin, LOW);
     } else {
-	  // connect pwm to pin on timer 0, channel B
-	  sbi(TCCR1, COM1A1);
+	  // connect pwm to pin on timer 0, channel B 
+      sbi(TCCR1, COM1A1); 
 	  // set pwm duty
-	  OCR1A = val;
+	  OCR1A = val;      // aka PB1
     }
   }  else if (val < 128)
     digitalWrite(pin, LOW);
