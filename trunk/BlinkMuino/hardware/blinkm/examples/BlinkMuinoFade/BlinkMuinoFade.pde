@@ -1,23 +1,29 @@
 /*
-  Fade
- 
+ * BlinkMuinoFade -- Fade up and down all BlinkM's LEDs.
+ *
+ * Based on the standard "Blink" Arduino example.
+ * 
+ * 2011 - Tod E. Kurt - http://todbot.com/blog/ - http://thingm.com/
  */
 
-// 
-const int grnPin = 4;
-const int redPin = 3; 
-const int bluPin = 1;
+// BlinkM / BlinkM MinM pins
+const int redPin = 3;  // 
+const int grnPin = 4;  //
+const int bluPin = 1;  // will blink when programming
+const int sdaPin = 0;  // 'd' pin, can be digital I/O
+const int sclPin = 2;  // 'c' pin, can be digital or analog I/O
 
-const int sdaPin = 0;
-const int sclPin = 2;
 
-void setup() {
+void setup()
+{
   pinMode(redPin, OUTPUT);     
   pinMode(grnPin, OUTPUT);     
   pinMode(bluPin, OUTPUT);     
 }
 
-void loop() {
+void loop()
+{
+  // fade up
   for(byte i=1; i<100; i++) {
     byte on  = i;
     byte off = 100-on;
@@ -30,6 +36,7 @@ void loop() {
       delayMicroseconds(off);
     }
   }
+  // fade down
   for(byte i=1; i<100; i++) {
     byte on  = 100-i;
     byte off = i;
