@@ -1,0 +1,5 @@
+avrispmkii.name=AVRISP mkII tod
+avrispmkii.communication=usb
+avrispmkii.protocol=stk500v2
+
+ 

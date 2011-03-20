@@ -1,5 +1,5 @@
 /**
- * freem_v1.c -- FreeM: BlinkM Battery Remote firmware
+ * freem_v1a.c -- FreeM: BlinkM Battery Remote firmware
  *
  * 
  * 2010, Tod E. Kurt, thingm.com
@@ -331,7 +331,11 @@ static void handle_key(void)
             else { // normal cmd
                 softuart_putsP("me!");
                 i2csendaddr = buf[2];
-                blinkm_sendCmd3( buf[3], buf[4], buf[5], buf[6] );
+                if( buf[3] == 'f' ) {   // FIXME: hack
+                    blinkm_setFadespeed( buf[4] );  
+                } else { 
+                    blinkm_sendCmd3( buf[3], buf[4], buf[5], buf[6] );
+                }
             }
         }
         
