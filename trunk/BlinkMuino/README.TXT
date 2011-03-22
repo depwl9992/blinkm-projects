@@ -40,7 +40,7 @@ the official AVRISPmkII from Atmel is 35 USD, while the USBtinyISP is 22 USD.
 With a programmer acquired, wire up the BlinkM to it.  If using AruinoISP, 
 see the diagrams and photos here:
   http://code.google.com/p/blinkm-projects/wiki/ReflashBlinkM
-The 
+
 
 
 Use

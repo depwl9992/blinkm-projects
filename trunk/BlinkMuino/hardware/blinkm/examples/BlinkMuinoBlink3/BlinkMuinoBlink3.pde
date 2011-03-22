@@ -9,9 +9,9 @@
 // BlinkM / BlinkM MinM pins
 const int redPin = 3;  // 
 const int grnPin = 4;  //
-const int bluPin = 1;  // will blink when programming
-const int sdaPin = 0;  // 'd' pin, can be digital I/O
-const int sclPin = 2;  // 'c' pin, can be digital or analog I/O
+const int bluPin = 1;  // PWM, will blink when programming
+const int sdaPin = 0;  // PWM, 'd' pin, can be digital I/O
+const int sclPin = 2;  // A/D, 'c' pin, can be digital I/O, or analog input
 
 void setup() 
 {
