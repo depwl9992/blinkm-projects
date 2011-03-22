@@ -29,8 +29,8 @@ SDA pin, digital I/O          0             PBx
 SCL pin, analog & digital I/O         2             PBx 
 
 
-Setup
------
+Hardware Setup
+--------------
 You will need an AVR-ISP programmer to program the BlinkM boards.
 If you have an Arduino board, the ArduinoISP sketch turns the Arduino 
 into an AVR-ISP programmer.  However, it doesn't work for all Arduino boards.
@@ -40,26 +40,31 @@ the official AVRISPmkII from Atmel is 35 USD, while the USBtinyISP is 22 USD.
 With a programmer acquired, wire up the BlinkM to it.  If using AruinoISP, 
 see the diagrams and photos here:
   http://code.google.com/p/blinkm-projects/wiki/ReflashBlinkM
+If using a regular AVR-ISP programmer, see the wiring diagrams here:
+  http://code.google.com/p/blinkm-projects/wiki/BlinkMuino
 
+
+Software Installation
+---------------------
+1. Copy the "hardware" in this folder to your Arduino sketchbook folder.
+
+You can find the location of your sketchbook by opening the Arduino preferences
+and looking at the "Sketchbook location" field.
+(If you already have a "hardware" folder in your sketchbook folder, copy
+just the "blinkm" folder into it)
+
+2. Restart the Arduino software.
+
+3. The "Tools" -> "Board" menu should now have entries for BlinkMs. 
+Select the entry that is correct for your hardware.
 
 
 Use
 ---
-1. Create a "hardware" folder in your Arduino sketchbook folder.
-You can find the location of your sketchbook by opening the Arduino preferences
-and looking at the "Sketchbook location" field.
-
-2. Copy the contents of the "blinkm" folder here into the "hardware" folder.
-
-3. Restart the Arduino software
-
-4. The "Tools" -> "Board" menu should now have entries for BlinkMs. 
-Select the entry that is correct for you.
-
-5. Open up one of the example sketches in hardware/blinkm/examples, say the
+Open up one of the example sketches in hardware/blinkm/examples, say the
 "BlinkMuinoBlink3" sketch.  Click the Run button to test compile it.
 
-6. Make sure your BlinkM is connected to the programmer and click "Upload".
+Make sure your BlinkM is connected to the programmer and click "Upload".
 If you have problems, press the Shift key while clicking Upload to see verbose
 messages.
 
