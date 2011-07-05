@@ -60,16 +60,25 @@ byte rx_buf[cmd_len];
 
 TimedAction cmdAction = TimedAction(200, updateCmdAction);
 
-// 
-// This file contains the actual "script" to play back
-//
-#include "Cmds.h"
+typedef struct _cmdline {
+  unsigned int dur;
+  byte addr;
+  byte cmd;
+  byte a1;
+  byte a2;
+  byte a3;
+} cmdline;
 
 cmdline cmdline_curr;
 int cmdline_pos = 0;
 
 unsigned int bri;
 unsigned int spd;
+
+// 
+// This file contains the actual "script" to play back
+//
+#include "Cmds.h"
 
 
 //
