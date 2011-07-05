@@ -1,16 +1,5 @@
-typedef struct _cmdline {
-  unsigned int dur;
-  byte addr;
-  byte cmd;
-  byte a1;
-  byte a2;
-  byte a3;
-} cmdline;
-
-
-
 //
-// Script for ASTERISK
+// BlinkMNet command script for ASTERISK
 //
 // There are 8 panels, arranged as four Arduinos with 2 BlinkM MaxMs each.
 // Each MaxM is driving white panels only, to full brightness, on all channels.
@@ -34,14 +23,22 @@ typedef struct _cmdline {
 //                 111111111122222222
 //
 
-//#define turn_on(x,y) {{ x, y, 'c', 0xff,0xff,0xff}}
+#define LED_A  11
+#define LED_S  12
+#define LED_T  13
 
-const int cmdline_len = 7;
+#define led_on(x,y)  {{ x, y, 'c', 0xff,0xff,0xff}}
+#define led_off(x,y) {{ x, y, 'c', 0x00,0x00,0x00}}
+//  { led_on(500, LED_A) },
+//  { led_of(0,   LED_S) },
+
+const int cmdline_len = 34;
 const cmdline cmdlines[] PROGMEM = { 
+// dur, addr,cmd,  args 
   { 500,  0, 'n',  0x33,0x33,0x33}, 
   {   0,  0, 'f',  0x20,0x00,0x00}, // set fadespeed
   { 500, 11, 'c',  0xff,0x00,0x00}, // frame 0: all on
-  {   0, 12, 'c',  0xff,0xff,0xff},
+  {   0, 12, 'c',  0xff,0xff,0xff}, // these happen at the same time, so 0 time
   {   0, 13, 'c',  0xff,0xff,0xff},
   {   0, 14, 'c',  0xff,0xff,0xff},
   {   0, 15, 'c',  0xff,0xff,0xff},
@@ -55,26 +52,18 @@ const cmdline cmdlines[] PROGMEM = {
   { 500, 14, 'c',  0x00,0x00,0x00}, // frame  5: turn off E
   { 500, 13, 'c',  0x00,0x00,0x00}, // frame  6: turn off T
   { 500, 12, 'c',  0x00,0x00,0x00}, // frame  7: turn off S
-
   { 500, 11, 'c',  0x00,0x00,0x00}, // frame  8: turn off A, turn on E
   {   0, 14, 'c',  0xff,0xff,0xff},
-
   { 500, 14, 'c',  0x00,0x00,0x00}, // frame  9: turn off E, turn on K
   {   0, 18, 'c',  0xff,0xff,0xff},
-
   { 500, 18, 'c',  0x00,0x00,0x00}, // frame 10: turn off K, turn on R
   {   0, 15, 'c',  0xff,0xff,0xff},
-
   { 500, 18, 'c',  0x00,0x00,0x00}, // frame 11: turn off R, turn on S
   {   0, 15, 'c',  0xff,0xff,0xff},
-
   { 500, 18, 'c',  0x00,0x00,0x00}, // frame 12: turn off S, turn on T
   {   0, 15, 'c',  0xff,0xff,0xff},
-
   { 500, 18, 'c',  0x00,0x00,0x00}, // frame 12: turn off T
-
   { 500,  0, 'c',  0x00,0x00,0x00}, // frame 13: turn off all
-
   { 500, 16, 'c',  0xff,0xff,0xff}, // frame 14: turn on I
   { 500, 16, 'c',  0x00,0x00,0x00}, // frame 15: turn off I
   { 500, 16, 'c',  0xff,0xff,0xff}, // frame 16: turn on I
@@ -99,7 +88,6 @@ const cmdline cmdlines[] PROGMEM = {
   {   0, 18, 'c',  0xff,0xff,0xff}, // 
   { 500,  0, 'c',  0x00,0x00,0x00}, // frame 25: turn off all
   { 500,  0, 'c',  0x00,0x00,0x00}, // frame 26: turn off all
-
 };  
 
 /*
