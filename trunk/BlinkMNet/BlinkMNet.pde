@@ -60,6 +60,9 @@ byte rx_buf[cmd_len];
 
 TimedAction cmdAction = TimedAction(200, updateCmdAction);
 
+// 
+// This file contains the actual "script" to play back
+//
 #include "Cmds.h"
 
 cmdline cmdline_curr;
@@ -76,13 +79,13 @@ void setup()
   pinMode( cmdEnablePin, INPUT);
   digitalWrite(cmdEnablePin, OUTPUT); // turn on pullup
 
-  // turn A2 & A3 into a tiny voltage source
+  // turn A2 & A3 into a tiny voltage source, for testing BlinkMs
   pinMode( gndPin, OUTPUT);
   pinMode( pwrPin, OUTPUT);
   digitalWrite( gndPin, LOW);
   digitalWrite( pwrPin, HIGH);
   
-  // a little flash to say we're alive
+  // a little flash of the status LED to say we're alive
   // also gives us a time delay for blinkms to come online
   for( int i=0; i<5; i++ ) {
     digitalWrite(ledPin,HIGH);
@@ -100,7 +103,7 @@ void setup()
   cmdAction.disable();  // not yet
 
   Serial.begin(bps);
-  Serial.print("JedHammer3 - ");
+  Serial.print("BlinkMNet - ");
   Serial.println(VERSION);
   delay(100);
 
@@ -136,7 +139,7 @@ void updateCmdAction()
     a2 = (a2 * bri) / 256;
     a3 = (a3 * bri) / 256;
     
-    if( newInterval != 0 ) {
+    if( newInterval != 0 ) {  
       newInterval = (newInterval * spd) / 128 + 10;
     }
   } 
