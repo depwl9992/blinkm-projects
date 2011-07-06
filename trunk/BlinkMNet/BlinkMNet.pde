@@ -1,5 +1,6 @@
 /*
- * BlinkMNet -- 
+ * BlinkMNet -- A network Ardiuno-connected BlinkMs
+ *
  *
  * Operation:
  * - Receive command from Serial or NSS
@@ -13,6 +14,27 @@
  * - cmdbyte == 'c', 'f', 'o', etc.
  * - chksum = xor sum of array
  *
+ *
+ * Arduinos and BlinkMs are connected like:
+ *
+ *        +---------+   +---------+   +-------->
+ *     tx |      rx |   | tx   rx |   | tx
+ *  +------+--+   +--v---+--+   +--v---+--+
+ *  | Arduino |   | Arduino |   | Arduino |
+ *  +---+-----+   +---+-----+   +---+-----+
+ *      |             |             |
+ *      |             |             |
+ *   +--v----+     +--v----+     +--v----+
+ *   |BlinkM1|     |BlinkM3|     |BlinkM5|
+ *   +--+----+     +--+----+     +--+----+
+ *      |             |             |
+ *   +--v----+     +--v----+     +--v----+
+ *   |BlinkM1|     |BlinkM4|     |BlinkM6|
+ *   +--+----+     +--+----+     +--+----+
+ *      |             |             |
+ *     ...           ...           ... 
+ *
+ *
  * 2011 - Tod E. Kurt - http://todbot.com/blog/
  *
  */
@@ -22,21 +44,22 @@
 #include <avr/pgmspace.h>
 
 
-const byte debug = 0;  // 
+const byte debug = 1;  // 
+const boolean enableKnobs = false;
 
-const char VERSION[] = "f";
+const char VERSION[] = "g";
 
 //const unsigned int bps = 38400;
 const unsigned int bps = 19200;
 //const unsigned int bps = 9600;
 
-const byte ledPin= 13;
-const byte txPin = 12;
-const byte rxPin = 11;
-const byte cmdEnablePin =  7;
-
-const byte briPin = A0; 
-const byte spdPin = A1;
+const byte ledPin= 13;          // for status blinking
+const byte txPin = 12;          // transmit to next Arduino in chain
+const byte rxPin = 11;          // receiver from previous Arduino in chain
+const byte cmdEnablePin =  7;   // set LOW to make this Arduino the commander
+ 
+const byte briPin = A0;  // control overall brightness
+const byte spdPin = A1;  // control speed
 
 const byte gndPin = A2;
 const byte pwrPin = A3;
@@ -109,11 +132,20 @@ void setup()
   nss1.begin(bps);
   delay(100);
 
-  cmdAction.disable();  // not yet
+  cmdAction.disable();  // do do actions yet
 
   Serial.begin(bps);
-  Serial.print("BlinkMNet - ");
-  Serial.println(VERSION);
+  Serial.print("BlinkMNet - version:");
+  Serial.print(VERSION);
+  Serial.print(" - '");
+  serialPrintProgStr( cmdline_id );
+  Serial.print("' len=");
+  Serial.println( cmdlines_len );
+
+  if( digitalRead(cmdEnablePin) == LOW ) { 
+    Serial.println("Acting as commander, will start sending script...");
+  }
+
   delay(100);
 
 }
@@ -121,8 +153,8 @@ void setup()
 // main loop
 void loop() 
 {
-  command_check();
-  ui_check();
+  command_check();    // check for incoming upstream commands
+  ui_check();         
   cmdAction.check();
 }
 
@@ -137,7 +169,7 @@ void updateCmdAction()
 
   // advance to next position
   cmdline_pos++;
-  if( cmdline_pos == cmdline_len ) cmdline_pos = 0;
+  if( cmdline_pos == cmdlines_len ) cmdline_pos = 0;
 
   newInterval = cmdline_curr.dur;
   a1 = cmdline_curr.a1;
@@ -149,7 +181,8 @@ void updateCmdAction()
     a3 = (a3 * bri) / 256;
     
     if( newInterval != 0 ) {  
-      newInterval = (newInterval * spd) / 128 + 10;
+      newInterval = (newInterval * spd) / 128;
+      if( newInterval < 10 ) newInterval = 10;
     }
   } 
 
@@ -161,7 +194,8 @@ void updateCmdAction()
   rx_buf[5] = 0;                    // checksum
 
   cmdAction.setInterval( newInterval );
- 
+  Serial.print("newInterval:");Serial.println(newInterval);
+  
   //Serial.println(millis() );
   if( debug>1 ) {
     Serial.print(millis() );
@@ -192,14 +226,13 @@ void ui_check()
     cmdAction.disable();
   }
 
-  if( 1 ) { 
-    bri = 127;
-    //bri = analogRead( briPin ) / 4;
+  if( enableKnobs ) { 
+    bri = analogRead( briPin ) / 4;
     spd = analogRead( spdPin ) / 4;
     if( spd==0 ) spd = 1;
   } else { 
-    bri = 255;
-    spd = 255;
+    bri = 255; // max bright default
+    spd = 128; // midpoint in speed default
   }
 }
 
@@ -209,11 +242,16 @@ void ui_check()
 void command_handle()
 {
   byte cmd = rx_buf[1];
-  if( cmd == 'n' || cmd == 'c' || cmd == 'h' || cmd == 'p' ) {
+  // three-arg case
+  if( cmd == 'n' || cmd == 'c' || cmd == 'h' || cmd == 'C' || cmd == 'H' || 
+      cmd == 'p' || cmd == 'k' || cmd == 'K' || cmd == 'i' || cmd == 'I' ) {
     //               addr        cmd         arg1       arg2      arg3
     BlinkM_sendCmd3( rx_buf[0], rx_buf[1], rx_buf[2], rx_buf[3], rx_buf[4] );
   } 
-  else if( cmd == 'o' ) {
+  else if( cmd == 'f' || cmd == 't' || cmd == 'j' ) { // one arg case
+    BlinkM_sendCmd1( rx_buf[0], rx_buf[1], rx_buf[2] );
+  } 
+  else if( cmd == 'o' ) {  // special case for no-argument all-off
     BlinkM_stopScript( rx_buf[0] );
   }
   else if( cmd == '0' ) { 
@@ -293,3 +331,13 @@ void command_check()
 }
 
   
+// given a PROGMEM string, use Serial.print() to send it out
+void serialPrintProgStr(const prog_char str[])
+{
+  char c;
+  if(!str) return;
+  while((c = pgm_read_byte(str++)))
+    Serial.print(c,BYTE);
+}
+
+// and then at some point

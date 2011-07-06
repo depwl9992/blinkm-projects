@@ -23,16 +23,17 @@
 //                 111111111122222222
 //
 
+// an unused idea to make script definitions easier
 #define LED_A  11
 #define LED_S  12
 #define LED_T  13
-
 #define led_on(x,y)  {{ x, y, 'c', 0xff,0xff,0xff}}
 #define led_off(x,y) {{ x, y, 'c', 0x00,0x00,0x00}}
+// it would then be used like:
 //  { led_on(500, LED_A) },
 //  { led_of(0,   LED_S) },
 
-const int cmdline_len = 34;
+const PROGMEM char cmdline_id[] = "ASTERISK for Hammer";
 const cmdline cmdlines[] PROGMEM = { 
 // dur, addr,cmd,  args 
   { 500,  0, 'n',  0x33,0x33,0x33}, 
@@ -89,6 +90,7 @@ const cmdline cmdlines[] PROGMEM = {
   { 500,  0, 'c',  0x00,0x00,0x00}, // frame 25: turn off all
   { 500,  0, 'c',  0x00,0x00,0x00}, // frame 26: turn off all
 };  
+const int cmdlines_len = sizeof(cmdlines)/sizeof(cmdline);
 
 /*
 const int cmdline_len = 11;
