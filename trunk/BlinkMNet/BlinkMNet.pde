@@ -59,6 +59,7 @@ const unsigned int bps = 19200;
 const byte ledPin= 13;          // for status blinking
 const byte txPin = 12;          // transmit to next Arduino in chain
 const byte rxPin = 11;          // receiver from previous Arduino in chain
+
 const byte cmdEnablePin =  7;   // set LOW to make this Arduino the commander
  
 const byte briPin = A0;  // control overall brightness
@@ -111,8 +112,9 @@ unsigned int spd;
 void setup()
 {
   pinMode( ledPin, OUTPUT);
+
   pinMode( cmdEnablePin, INPUT);
-  digitalWrite(cmdEnablePin, OUTPUT); // turn on pullup
+  digitalWrite(cmdEnablePin, HIGH); // turn on pullup
 
   // turn A2 & A3 into a tiny voltage source, for testing BlinkMs
   pinMode( gndPin, OUTPUT);
