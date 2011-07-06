@@ -3,9 +3,9 @@
  *
  *
  * Operation:
- * - Receive command from Serial or NSS
+ * - Receive command from Serial or NSS from upstream Arduino or PC
  * - Perform command
- * - Relay command to NSS 
+ * - Relay command via NSS to downstream Arduino
  *
  * Command format:
  *                0       1         2          3     4     5     6
@@ -17,9 +17,9 @@
  *
  * Arduinos and BlinkMs are connected like:
  *
- *        +---------+   +---------+   +-------->
- *     tx |      rx |   | tx   rx |   | tx
- *  +------+--+   +--v---+--+   +--v---+--+
+ * >--+   +---------+   +---------+   +--------> ...
+ * rx |   | tx   rx |   | tx   rx |   | tx
+ *  +-v---+--+   +--v---+--+   +--v---+--+
  *  | Arduino |   | Arduino |   | Arduino |
  *  +---+-----+   +---+-----+   +---+-----+
  *      |             |             |
@@ -44,7 +44,10 @@
 #include <avr/pgmspace.h>
 
 
-const byte debug = 1;  // 
+// control debugging output:
+// debug=1 -- print 'cmd' on each cmd sent
+// debug=2 -- print out each command handled
+const byte debug = 2;  
 const boolean enableKnobs = false;
 
 const char VERSION[] = "g";
@@ -175,7 +178,7 @@ void updateCmdAction()
   a1 = cmdline_curr.a1;
   a2 = cmdline_curr.a2;
   a3 = cmdline_curr.a3;
-  if( 1 ) {
+  if( enableKnobs ) {
     a1 = (a1 * bri) / 256;
     a2 = (a2 * bri) / 256;
     a3 = (a3 * bri) / 256;
@@ -194,9 +197,7 @@ void updateCmdAction()
   rx_buf[5] = 0;                    // checksum
 
   cmdAction.setInterval( newInterval );
-  Serial.print("newInterval:");Serial.println(newInterval);
   
-  //Serial.println(millis() );
   if( debug>1 ) {
     Serial.print(millis() );
     Serial.print(" - ");
