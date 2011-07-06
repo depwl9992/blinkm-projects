@@ -94,6 +94,7 @@ typedef struct _cmdline {
   byte a1;
   byte a2;
   byte a3;
+  char desc[5];
 } cmdline;
 
 cmdline cmdline_curr;
@@ -149,6 +150,8 @@ void setup()
 
   if( digitalRead(cmdEnablePin) == LOW ) { 
     Serial.println("Acting as commander, will start sending script...");
+  } else {
+    Serial.println("Acting as slave, will forward incoming msgs too...");
   }
 
   delay(100);
@@ -201,13 +204,16 @@ void updateCmdAction()
   cmdAction.setInterval( newInterval );
   
   if( debug>1 ) {
+    Serial.print( cmdline_curr.desc );
+    Serial.print('\t');
     Serial.print(millis() );
-    Serial.print(" - ");
-    Serial.print(newInterval,DEC);         Serial.print(',');
-    Serial.print((char)cmdline_curr.cmd);  Serial.print(',');
-    Serial.print((byte)a1,HEX);            Serial.print(',');
-    Serial.print((byte)a2,HEX);            Serial.print(',');
-    Serial.print((byte)a3,HEX);            Serial.print('\n');
+    Serial.print('\t');
+    Serial.print(newInterval,DEC);              Serial.print('\t');
+    Serial.print((byte)cmdline_curr.addr,DEC);  Serial.print('\t');
+    Serial.print((char)cmdline_curr.cmd);       Serial.print(',');
+    Serial.print((byte)a1,HEX);                 Serial.print(',');
+    Serial.print((byte)a2,HEX);                 Serial.print(',');
+    Serial.print((byte)a3,HEX);                 Serial.print('\n');
   }
 
   command_send();
@@ -266,7 +272,7 @@ void command_handle()
 //
 void command_send()
 {
-  if(debug) { Serial.println("cmd"); }
+  if(debug>0 && debug!=2) { Serial.println("cmd"); }
   digitalWrite(ledPin, HIGH); // say we got something
   nss1.print( cmd_startbyte, BYTE );
   for( int i=0; i<cmd_len; i++ ) {
