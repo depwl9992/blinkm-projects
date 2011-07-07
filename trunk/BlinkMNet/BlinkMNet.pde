@@ -218,9 +218,9 @@ void updateCmdAction()
     Serial.print((byte)a1,HEX);                 Serial.print(',');
     Serial.print((byte)a2,HEX);                 Serial.print(',');
     Serial.print((byte)a3,HEX);                 Serial.print('\n');
-    if( debug > 3 ) {
-    Serial.print("bri/spd=");
-    Serial.print(bri); Serial.print(','); Serial.println(spd);
+    if( debug > 2 ) {
+      Serial.print("bri/spd=");
+      Serial.print(bri); Serial.print(','); Serial.println(spd);
     }
   }
 
