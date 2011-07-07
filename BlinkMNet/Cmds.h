@@ -33,6 +33,15 @@
 //  { led_on(500, LED_A) },
 //  { led_of(0,   LED_S) },
 
+/*
+const PROGMEM char cmdline_id[] = "ASTERISK Test for Hammer";
+const cmdline cmdlines[] PROGMEM = { 
+// dur, addr,cmd,  args 
+  {  10,  0, 'o',  0x00,0x00,0x00, "stof" },
+  { 500,  0, 'c',  0xff,0xff,0xff, "f00a" }, // frame 0: all on
+};
+*/
+
 const PROGMEM char cmdline_id[] = "ASTERISK for Hammer";
 const cmdline cmdlines[] PROGMEM = { 
 // dur, addr,cmd,  args 
@@ -89,6 +98,8 @@ const cmdline cmdlines[] PROGMEM = {
   { 500,  0, 'c',  0x00,0x00,0x00, "f25 " }, // frame 25: turn off all
   { 500,  0, 'c',  0x00,0x00,0x00, "f26 " }, // frame 26: turn off all
 };  
+
+
 const int cmdlines_len = sizeof(cmdlines)/sizeof(cmdline);
 
 /*

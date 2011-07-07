@@ -50,7 +50,7 @@
 const byte debug = 2;  
 const boolean enableKnobs = false;
 
-const char VERSION[] = "g";
+const char VERSION[] = "h";
 
 //const unsigned int bps = 38400;
 const unsigned int bps = 19200;
@@ -61,6 +61,7 @@ const byte txPin = 12;          // transmit to next Arduino in chain
 const byte rxPin = 11;          // receiver from previous Arduino in chain
 
 const byte cmdEnablePin =  7;   // set LOW to make this Arduino the commander
+const byte knobEnablePin = 6;   // set LOW to enable knobs
  
 const byte briPin = A0;  // control overall brightness
 const byte spdPin = A1;  // control speed
@@ -116,6 +117,9 @@ void setup()
 
   pinMode( cmdEnablePin, INPUT);
   digitalWrite(cmdEnablePin, HIGH); // turn on pullup
+
+  pinMode( knobEnablePin, INPUT);
+  digitalWrite(knobEnablePin, HIGH); // turn on pullup
 
   // turn A2 & A3 into a tiny voltage source, for testing BlinkMs
   pinMode( gndPin, OUTPUT);
@@ -214,6 +218,10 @@ void updateCmdAction()
     Serial.print((byte)a1,HEX);                 Serial.print(',');
     Serial.print((byte)a2,HEX);                 Serial.print(',');
     Serial.print((byte)a3,HEX);                 Serial.print('\n');
+    if( debug > 3 ) {
+    Serial.print("bri/spd=");
+    Serial.print(bri); Serial.print(','); Serial.println(spd);
+    }
   }
 
   command_send();
@@ -234,6 +242,8 @@ void ui_check()
   } else {
     cmdAction.disable();
   }
+
+  //enableKnobs = !digitalRead( knobEnablePin );  // active low
 
   if( enableKnobs ) { 
     bri = analogRead( briPin ) / 4;
