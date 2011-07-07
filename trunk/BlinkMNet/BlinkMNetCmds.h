@@ -57,14 +57,14 @@ const cmdline cmdlines[] PROGMEM = {
 // dur, addr,cmd,  args 
   {  10, LED_ALL, 'o',  0x00,0x00,0x00, "stof" },
   {  10, LED_ALL, 'f',  100, 0x00,0x00, "fads" }, // set fadespeed
-  { 500, LED_A,   'c',  0xff,0xff,0xff, "f00a" }, // frame 0: all on
+  {   0, LED_A,   'c',  0xff,0xff,0xff, "f00a" }, // frame 0: all on
   {   0, LED_S,   'c',  0xff,0xff,0xff, "f00b" }, // all at same time, so 0 time
   {   0, LED_T,   'c',  0xff,0xff,0xff, "f00c" },
   {   0, LED_E,   'c',  0xff,0xff,0xff, "f00d" },
   {   0, LED_R,   'c',  0xff,0xff,0xff, "f00e" },
   {   0, LED_I,   'c',  0xff,0xff,0xff, "f00f" },
   {   0, LED_Z,   'c',  0xff,0xff,0xff, "f00g" },
-  {   0, LED_K,   'c',  0xff,0xff,0xff, "f00h" },
+  { 500, LED_K,   'c',  0xff,0xff,0xff, "f00h" },
   { 500, LED_K,   'c',  0x00,0x00,0x00, "f01 " }, // frame  1: off K
   { 500, LED_Z,   'c',  0x00,0x00,0x00, "f02 " }, // frame  2: off Z
   { 500, LED_I,   'c',  0x00,0x00,0x00, "f03 " }, // frame  3: off I
@@ -72,18 +72,22 @@ const cmdline cmdlines[] PROGMEM = {
   { 500, LED_E,   'c',  0x00,0x00,0x00, "f05 " }, // frame  5: off E
   { 500, LED_T,   'c',  0x00,0x00,0x00, "f06 " }, // frame  6: off T
   { 500, LED_S,   'c',  0x00,0x00,0x00, "f07 " }, // frame  7: off S
-  { 500, LED_A,   'c',  0x00,0x00,0x00, "f08a" }, // frame  8: off A, on E
-  {   0, LED_E,   'c',  0xff,0xff,0xff, "f08b" },
 
-  { 500, LED_E,   'c',  0x00,0x00,0x00, "f09a" }, // frame  9: off E, on K
-  {   0, LED_K,   'c',  0xff,0xff,0xff, "f09b" },
+  {   0, LED_A,   'c',  0x00,0x00,0x00, "f08a" }, // frame  8: off A, on E
+  { 500, LED_E,   'c',  0xff,0xff,0xff, "f08b" },
 
-  { 500, LED_K,   'c',  0x00,0x00,0x00, "f10a" }, // frame 10: off K, on R
-  {   0, LED_R,   'c',  0xff,0xff,0xff, "f10b" },
-  { 500, LED_R,   'c',  0x00,0x00,0x00, "f11a" }, // frame 11: off R, on Z
-  {   0, LED_Z,   'c',  0xff,0xff,0xff, "f11b" },
-  { 500, LED_Z,   'c',  0x00,0x00,0x00, "f12a" }, // frame 12: off Z, on T
-  {   0, LED_T,   'c',  0xff,0xff,0xff, "f12b" },
+  {   0, LED_E,   'c',  0x00,0x00,0x00, "f09a" }, // frame  9: off E, on K
+  { 500, LED_K,   'c',  0xff,0xff,0xff, "f09b" },
+
+  {   0, LED_K,   'c',  0x00,0x00,0x00, "f10a" }, // frame 10: off K, on R
+  { 500, LED_R,   'c',  0xff,0xff,0xff, "f10b" },
+
+  {   0, LED_R,   'c',  0x00,0x00,0x00, "f11a" }, // frame 11: off R, on Z
+  { 500, LED_Z,   'c',  0xff,0xff,0xff, "f11b" },
+
+  {   0, LED_Z,   'c',  0x00,0x00,0x00, "f12a" }, // frame 12: off Z, on T
+  { 500, LED_T,   'c',  0xff,0xff,0xff, "f12b" },
+
   { 500, LED_ALL, 'c',  0x00,0x00,0x00, "f13 " }, // frame 13 off T (all)
   { 500, LED_I,   'c',  0xff,0xff,0xff, "f14 " }, // frame 14:  on I
   { 500, LED_I,   'c',  0x00,0x00,0x00, "f15 " }, // frame 15: off I
@@ -92,27 +96,27 @@ const cmdline cmdlines[] PROGMEM = {
 
   { 500, LED_I,   'c',  0xff,0xff,0xff, "f18 " }, // frame 18:  on I
 
-  { 500, LED_R,   'c',  0xff,0xff,0xff, "f19a" }, // frame 19: on R,Z,K
+  {   0, LED_R,   'c',  0xff,0xff,0xff, "f19a" }, // frame 19: on R,Z,K
   {   0, LED_Z,   'c',  0xff,0xff,0xff, "f19b" }, // 
-  {   0, LED_K,   'c',  0xff,0xff,0xff, "f19c" }, // 
+  { 500, LED_K,   'c',  0xff,0xff,0xff, "f19c" }, // 
 
-  { 500, LED_R,   'c',  0x00,0x00,0x00, "f20a" }, // frame 20: off R,Z,K
+  {   0, LED_R,   'c',  0x00,0x00,0x00, "f20a" }, // frame 20: off R,Z,K
   {   0, LED_Z,   'c',  0x00,0x00,0x00, "f20b" }, // 
-  {   0, LED_K,   'c',  0x00,0x00,0x00, "f20c" }, // 
+  { 500, LED_K,   'c',  0x00,0x00,0x00, "f20c" }, // 
 
-  { 500, LED_R,   'c',  0xff,0xff,0xff, "f21a" }, // frame 21: on R,Z,K
+  {   0, LED_R,   'c',  0xff,0xff,0xff, "f21a" }, // frame 21: on R,Z,K
   {   0, LED_Z,   'c',  0xff,0xff,0xff, "f21b" }, // 
-  {   0, LED_K,   'c',  0xff,0xff,0xff, "f21c" }, // 
+  { 500, LED_K,   'c',  0xff,0xff,0xff, "f21c" }, // 
 
-  { 500, LED_R,   'c',  0x00,0x00,0x00, "f22a" }, // frame 22: off R,Z,K
+  {   0, LED_R,   'c',  0x00,0x00,0x00, "f22a" }, // frame 22: off R,Z,K
   {   0, LED_Z,   'c',  0x00,0x00,0x00, "f22c" }, // 
-  {   0, LED_K,   'c',  0x00,0x00,0x00, "f22d" }, // 
+  { 500, LED_K,   'c',  0x00,0x00,0x00, "f22d" }, // 
 
   { 500, LED_I,   'c',  0xff,0xff,0xff, "f23 " }, // frame 23: on I
 
-  { 500, LED_R,   'c',  0xff,0xff,0xff, "f24a" }, // frame 24: on R,Z,K
+  {   0, LED_R,   'c',  0xff,0xff,0xff, "f24a" }, // frame 24: on R,Z,K
   {   0, LED_Z,   'c',  0xff,0xff,0xff, "f24b" }, // 
-  {   0, LED_K,   'c',  0xff,0xff,0xff, "f24c" }, // 
+  { 500, LED_K,   'c',  0xff,0xff,0xff, "f24c" }, // 
 
   { 500, LED_ALL, 'c',  0x00,0x00,0x00, "f25 " }, // frame 25: off all
 
