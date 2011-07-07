@@ -39,9 +39,9 @@
  *
  */
 
-#include <NewSoftSerial.h>
-#include <TimedAction.h>
-#include <avr/pgmspace.h>
+#include "./NewSoftSerial.h" // local version, not in libraries directory
+#include "./TimedAction.h"   // local version, not in libraries directory
+#include <avr/pgmspace.h>    // for reading from ROM strings
 
 
 // control debugging output:
@@ -53,7 +53,7 @@ const boolean enableKnobs = false;
 const char VERSION[] = "h";
 
 //const unsigned int bps = 38400;
-const unsigned int bps = 19200;
+const unsigned int bps = 19200;   // this speeds seems best 
 //const unsigned int bps = 9600;
 
 const byte ledPin= 13;          // for status blinking
@@ -107,7 +107,7 @@ unsigned int spd;
 // 
 // This file contains the actual "script" to play back
 //
-#include "Cmds.h"
+#include "BlinkMNetCmds.h"
 
 
 //
