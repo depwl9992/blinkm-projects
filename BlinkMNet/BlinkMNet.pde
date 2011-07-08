@@ -89,13 +89,13 @@ byte rx_buf[cmd_len];
 TimedAction cmdAction = TimedAction(200, updateCmdAction);
 
 typedef struct _cmdline {
-  unsigned int dur;
   byte addr;
   byte cmd;
   byte a1;
   byte a2;
   byte a3;
   char desc[5];
+  unsigned int dur;  // time in millis to next cmd
 } cmdline;
 
 cmdline cmdline_curr;
@@ -184,6 +184,7 @@ void updateCmdAction()
   if( cmdline_pos == cmdlines_len ) cmdline_pos = 0;
 
   newInterval = cmdline_curr.dur;
+
   a1 = cmdline_curr.a1;
   a2 = cmdline_curr.a2;
   a3 = cmdline_curr.a3;
