@@ -49,12 +49,12 @@
 // debug=1 -- print 'cmd' on each cmd sent
 // debug=2 -- print out each command handled
 // debug=3 -- print out knob values too
-const byte debug = 2;  
+const byte debug = 3;  
 // set to false to enable 
 const boolean enableKnobs = true;
 const boolean enableIR = true;
 
-const char VERSION[] = "g";
+const char VERSION[] = "h";
 
 //const unsigned int bps = 38400;
 const unsigned int bps = 19200;   // this speeds seems best 
@@ -237,11 +237,9 @@ void updateCmdAction()
     Serial.print((char)cmdline_curr.cmd);       Serial.print(',');
     Serial.print((byte)a1,HEX);                 Serial.print(',');
     Serial.print((byte)a2,HEX);                 Serial.print(',');
-    Serial.print((byte)a3,HEX);                 Serial.print('\n');
-    if( debug > 2 ) {
+    Serial.print((byte)a3,HEX);                 Serial.print('\t');
       Serial.print("bri/spd=");
       Serial.print(bri); Serial.print(','); Serial.println(spd);
-    }
   }
 
   command_send();
@@ -325,38 +323,42 @@ void ir_check()
       bri -= 10;
       if( bri < 0 ) bri = 0;
     }
+    else if( v == SONY_ENTER ) {
+      bri = bri_default;
+      spd = spd_default;
+    }
     else if( v == SONY_ONE ) {
-      spd = 1023 - 100;
+      spd = 968; // approx 100ms
     }
     else if( v == SONY_TWO ) {
-      spd = 1023 - 200;
+      spd = 920; // approx 200 ms
     }
     else if( v == SONY_THREE ) {
-      spd = 1023 - 300;
+      spd = 867; // approx 300 ms
     }
     else if( v == SONY_FOUR ) {
-      spd = 1023 - 400;
+      spd = 815; // approx 400 ms
     }
     else if( v == SONY_FIVE ) {
       spd = spd_default;
     }
     else if( v == SONY_SIX ) {
-      spd = 1023 - 600;
+      spd = 700; // approx 600 ms
     }
     else if( v == SONY_SEVEN ) {
-      spd = 1023 - 700;
+      spd = 500; // approx 1000 ms
     }
     else if( v == SONY_EIGHT ) {
-      spd = 1023 - 800;
+      spd = 395; // approx 1250 ms
     }
     else if( v == SONY_NINE ) {
-      spd = 1023 - 900;
+      spd = 250; // approx 1500 ms
     }
     else if( v == SONY_ZERO ) {
-      spd = 0;
+      spd = 1;  // approx 2000 ms
     }
 
-    if(debug>2) Serial.println(results.value, HEX);
+    if(debug>1) Serial.println(results.value, HEX);
     irrecv.resume(); // Receive the next value
   }
 }
