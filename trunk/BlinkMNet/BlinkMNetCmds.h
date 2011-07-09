@@ -23,7 +23,7 @@
 //                 111111111122222222
 //
 
-const byte fadespeed = 100;
+const byte fadespeed = 25;
 const int msframe = 500;
 
 const byte LED__ = 0;

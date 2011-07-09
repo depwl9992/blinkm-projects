@@ -43,14 +43,18 @@
 #include "./TimedAction.h"   // local version, not in libraries directory
 #include <avr/pgmspace.h>    // for reading from ROM strings
 
+#include <IRremote.h>
 
 // control debugging output:
 // debug=1 -- print 'cmd' on each cmd sent
 // debug=2 -- print out each command handled
+// debug=3 -- print out knob values too
 const byte debug = 2;  
-const boolean enableKnobs = false;
+// set to false to enable 
+const boolean enableKnobs = true;
+const boolean enableIR = true;
 
-const char VERSION[] = "h";
+const char VERSION[] = "g";
 
 //const unsigned int bps = 38400;
 const unsigned int bps = 19200;   // this speeds seems best 
@@ -61,7 +65,8 @@ const byte txPin = 12;          // transmit to next Arduino in chain
 const byte rxPin = 11;          // receiver from previous Arduino in chain
 
 const byte cmdEnablePin =  7;   // set LOW to make this Arduino the commander
-const byte knobEnablePin = 6;   // set LOW to enable knobs
+
+const byte irRecvPin = 2;
  
 const byte briPin = A0;  // control overall brightness
 const byte spdPin = A1;  // control speed
@@ -79,6 +84,7 @@ SoftI2CMaster i2c = SoftI2CMaster( sdaPin,sclPin );
 // NewSoftSerial(recv_pin, trans_pin)
 NewSoftSerial nss1(rxPin, txPin);  // 
 
+IRrecv irrecv(irRecvPin);
 
 const byte cmd_startbyte = '!'; // 0x85;
 const byte cmd_len = 6;  // includes checksum,doesn't include startbytex
@@ -101,8 +107,11 @@ typedef struct _cmdline {
 cmdline cmdline_curr;
 int cmdline_pos = 0;
 
-unsigned int bri;
-unsigned int spd;
+const unsigned int bri_default = 1023; // max bright default
+const unsigned int spd_default = 768;   // "mid"point in speed  
+
+unsigned int bri = bri_default;
+unsigned int spd = spd_default;
 
 // 
 // This file contains the actual "script" to play back
@@ -118,15 +127,16 @@ void setup()
   pinMode( cmdEnablePin, INPUT);
   digitalWrite(cmdEnablePin, HIGH); // turn on pullup
 
-  pinMode( knobEnablePin, INPUT);
-  digitalWrite(knobEnablePin, HIGH); // turn on pullup
-
   // turn A2 & A3 into a tiny voltage source, for testing BlinkMs
   pinMode( gndPin, OUTPUT);
   pinMode( pwrPin, OUTPUT);
   digitalWrite( gndPin, LOW);
   digitalWrite( pwrPin, HIGH);
   
+  if( enableIR ) {
+    irrecv.enableIRIn();
+  }
+
   // a little flash of the status LED to say we're alive
   // also gives us a time delay for blinkms to come online
   for( int i=0; i<5; i++ ) {
@@ -152,11 +162,18 @@ void setup()
   Serial.print("' len=");
   Serial.println( cmdlines_len );
 
-  if( digitalRead(cmdEnablePin) == LOW ) { 
+  if( digitalRead(cmdEnablePin) == LOW )  
     Serial.println("Acting as commander, will start sending script...");
-  } else {
+  else 
     Serial.println("Acting as slave, will forward incoming msgs too...");
-  }
+
+  Serial.print("Knobs are: ");
+  if( enableKnobs )  Serial.println("enabled");
+  else               Serial.println("disabled");
+  Serial.print("IR receiver is: ");
+  if( enableIR )  Serial.println("enabled");
+  else            Serial.println("disabled");
+
 
   delay(100);
 
@@ -173,7 +190,7 @@ void loop()
 //
 void updateCmdAction() 
 {
-  unsigned int a1,a2,a3;
+  unsigned long a1,a2,a3;
   unsigned long newInterval;
 
   // get new cmdline
@@ -188,13 +205,15 @@ void updateCmdAction()
   a1 = cmdline_curr.a1;
   a2 = cmdline_curr.a2;
   a3 = cmdline_curr.a3;
-  if( enableKnobs ) {
-    a1 = (a1 * bri) / 256;
-    a2 = (a2 * bri) / 256;
-    a3 = (a3 * bri) / 256;
+  if( enableKnobs || enableIR ) {
+    a1 = (a1 * bri) / 1024;
+    a2 = (a2 * bri) / 1024;
+    a3 = (a3 * bri) / 1024;
     
+    // only operate on non-zero (non-immediate) intervals
+    // and weight them 1/4 down so 'mid'point is at 1/4 point
     if( newInterval != 0 ) {  
-      newInterval = (newInterval * spd) / 128;
+      newInterval = (newInterval * (1023-spd)) / 256; //1023-spd flips sense
       if( newInterval < 10 ) newInterval = 10;
     }
   } 
@@ -244,17 +263,105 @@ void ui_check()
     cmdAction.disable();
   }
 
-  //enableKnobs = !digitalRead( knobEnablePin );  // active low
-
   if( enableKnobs ) { 
-    bri = analogRead( briPin ) / 4;
-    spd = analogRead( spdPin ) / 4;
+    if(1) {
+      static int brival_old,spdval_old; //look for movment differences
+      static long knobMillis;
+      if( (millis() - knobMillis) > 100 ) { // this should be a TimedAction
+        knobMillis = millis();
+        int brival = analogRead(briPin);
+        int spdval = analogRead(spdPin);
+        if( abs(brival - brival_old) > 5 ) { // 10 is arbitrary
+          bri = brival;
+          if(debug>2) Serial.println("***** bri!");
+        }
+        if( abs(spdval - spdval_old) > 5 ) { // 10 is arbitrary
+          spd = spdval;
+          if(debug>2) Serial.println("***** spd!");
+        }
+        brival_old = brival;
+        spdval_old = spdval;
+      }
+    }
+    else {
+      bri = analogRead( briPin ) ;
+      spd = analogRead( spdPin ) ;
+    }
     if( spd==0 ) spd = 1;
-  } else { 
-    bri = 255; // max bright default
-    spd = 128; // midpoint in speed default
+  }
+
+  if( enableIR ) {
+    ir_check();
   }
 }
+
+#define SONY_PWR    0xA90
+#define SONY_VOL_UP 0x490
+#define SONY_VOL_DN 0xC90
+#define SONY_CH_UP  0x090
+#define SONY_CH_DN  0x890
+#define SONY_ENTER  0xA70
+#define SONY_ONE    0x010  
+#define SONY_TWO    0x810
+#define SONY_THREE  0x410
+#define SONY_FOUR   0xc10
+#define SONY_FIVE   0x210
+#define SONY_SIX    0xa10
+#define SONY_SEVEN  0x610
+#define SONY_EIGHT  0xe10
+#define SONY_NINE   0x110
+#define SONY_ZERO   0x910
+  
+void ir_check()
+{
+  decode_results results;
+  if (irrecv.decode(&results)) {
+    int v = results.value;
+    if( v == SONY_VOL_UP ) {
+      bri += 10;
+      if( bri > 1023 ) bri = 1023;
+    }
+    else if( v == SONY_VOL_DN ) { 
+      bri -= 10;
+      if( bri < 0 ) bri = 0;
+    }
+    else if( v == SONY_ONE ) {
+      spd = 1023 - 100;
+    }
+    else if( v == SONY_TWO ) {
+      spd = 1023 - 200;
+    }
+    else if( v == SONY_THREE ) {
+      spd = 1023 - 300;
+    }
+    else if( v == SONY_FOUR ) {
+      spd = 1023 - 400;
+    }
+    else if( v == SONY_FIVE ) {
+      spd = spd_default;
+    }
+    else if( v == SONY_SIX ) {
+      spd = 1023 - 600;
+    }
+    else if( v == SONY_SEVEN ) {
+      spd = 1023 - 700;
+    }
+    else if( v == SONY_EIGHT ) {
+      spd = 1023 - 800;
+    }
+    else if( v == SONY_NINE ) {
+      spd = 1023 - 900;
+    }
+    else if( v == SONY_ZERO ) {
+      spd = 0;
+    }
+
+    if(debug>2) Serial.println(results.value, HEX);
+    irrecv.resume(); // Receive the next value
+  }
+}
+
+// ------------------------------------------------------------------------
 
 //
 // execute a command in rx_buf
