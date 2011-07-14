@@ -7,6 +7,7 @@
  * - Perform command
  * - Relay command via NSS to downstream Arduino
  *
+ * 
  * Command format:
  *                0       1         2          3     4     5     6
  * - 7 bytes - startbye, addr, blinkm_cmdbyte, arg1, arg2, arg3, chksum
@@ -41,24 +42,28 @@
 
 #include "./NewSoftSerial.h" // local version, not in libraries directory
 #include "./TimedAction.h"   // local version, not in libraries directory
+#include "./IRremote.h"      // local version, not in libraries directory
 #include <avr/pgmspace.h>    // for reading from ROM strings
 
-#include <IRremote.h>
 
 // control debugging output:
 // debug=1 -- print 'cmd' on each cmd sent
 // debug=2 -- print out each command handled
 // debug=3 -- print out knob values too
-const byte debug = 3;  
+const byte debug = 2;  
 // set to false to enable 
 const boolean enableKnobs = true;
 const boolean enableIR = true;
 
-const char VERSION[] = "h";
+const char VERSION[] = "i";
 
 //const unsigned int bps = 38400;
-const unsigned int bps = 19200;   // this speeds seems best 
-//const unsigned int bps = 9600;
+//const unsigned int bps = 19200;   // this speeds seems best 
+const unsigned int bps = 9600; // let's try slower due to noise issues
+
+const unsigned int bri_default = 1023; // max bright default
+const unsigned int spd_default = 850;   // "mid"point in speed  
+//const unsigned int spd_default = 768;   // "mid"point in speed  
 
 const byte ledPin= 13;          // for status blinking
 const byte txPin = 12;          // transmit to next Arduino in chain
@@ -107,8 +112,6 @@ typedef struct _cmdline {
 cmdline cmdline_curr;
 int cmdline_pos = 0;
 
-const unsigned int bri_default = 1023; // max bright default
-const unsigned int spd_default = 768;   // "mid"point in speed  
 
 unsigned int bri = bri_default;
 unsigned int spd = spd_default;
@@ -265,15 +268,15 @@ void ui_check()
     if(1) {
       static int brival_old,spdval_old; //look for movment differences
       static long knobMillis;
-      if( (millis() - knobMillis) > 100 ) { // this should be a TimedAction
+      if( (millis() - knobMillis) > 200 ) { // this should be a TimedAction
         knobMillis = millis();
         int brival = analogRead(briPin);
         int spdval = analogRead(spdPin);
-        if( abs(brival - brival_old) > 5 ) { // 10 is arbitrary
+        if( abs(brival - brival_old) > 30 ) { // 10 is arbitrary
           bri = brival;
           if(debug>2) Serial.println("***** bri!");
         }
-        if( abs(spdval - spdval_old) > 5 ) { // 10 is arbitrary
+        if( abs(spdval - spdval_old) > 30 ) { // 10 is arbitrary
           spd = spdval;
           if(debug>2) Serial.println("***** spd!");
         }
@@ -316,46 +319,44 @@ void ir_check()
   if (irrecv.decode(&results)) {
     int v = results.value;
     if( v == SONY_VOL_UP ) {
-      bri += 10;
-      if( bri > 1023 ) bri = 1023;
+      if( bri < (1023-40) ) bri += 40;
     }
     else if( v == SONY_VOL_DN ) { 
-      bri -= 10;
-      if( bri < 0 ) bri = 0;
+      if( bri > 40 ) bri -= 40;
     }
     else if( v == SONY_ENTER ) {
       bri = bri_default;
       spd = spd_default;
     }
     else if( v == SONY_ONE ) {
-      spd = 968; // approx 100ms
+      spd = 1;  // approx 2000 ms
     }
     else if( v == SONY_TWO ) {
-      spd = 920; // approx 200 ms
-    }
-    else if( v == SONY_THREE ) {
-      spd = 867; // approx 300 ms
-    }
-    else if( v == SONY_FOUR ) {
-      spd = 815; // approx 400 ms
-    }
-    else if( v == SONY_FIVE ) {
-      spd = spd_default;
-    }
-    else if( v == SONY_SIX ) {
-      spd = 700; // approx 600 ms
-    }
-    else if( v == SONY_SEVEN ) {
-      spd = 500; // approx 1000 ms
-    }
-    else if( v == SONY_EIGHT ) {
-      spd = 395; // approx 1250 ms
-    }
-    else if( v == SONY_NINE ) {
       spd = 250; // approx 1500 ms
     }
+    else if( v == SONY_THREE ) {
+      spd = 395; // approx 1250 ms
+    }
+    else if( v == SONY_FOUR ) {
+      spd = 500; // approx 1000 ms
+    }
+    else if( v == SONY_FIVE ) {
+      spd = 768; // spd_default;  // approx 500 ms (spd=768)
+    }
+    else if( v == SONY_SIX ) {
+      spd = 800; // approx 600 ms
+    }
+    else if( v == SONY_SEVEN ) {
+      spd = 850; // approx 400 ms // new default
+    }
+    else if( v == SONY_EIGHT ) {
+      spd = 900; // approx 300 ms
+    }
+    else if( v == SONY_NINE ) {
+      spd = 950; // approx 200 ms
+    }
     else if( v == SONY_ZERO ) {
-      spd = 1;  // approx 2000 ms
+      spd = 999; // approx 100ms
     }
 
     if(debug>1) Serial.println(results.value, HEX);
@@ -409,8 +410,8 @@ void command_check()
 {
   boolean goodpacket = false;
   //
-  if( nss1.available()  ) { 
-    Serial.print('.');
+  if( nss1.available() ) { 
+    //Serial.print('.');
     int c = nss1.read();
     if( c == cmd_startbyte ) {
       long startMillis = millis();
