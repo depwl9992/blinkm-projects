@@ -23,7 +23,7 @@
 //                 111111111122222222
 //
 
-const byte fadespeed = 25;
+const byte fadespeed = 100;
 const int msframe = 500;
 
 const byte LED__ = 0;
@@ -73,6 +73,7 @@ const cmdline cmdlines[] PROGMEM = {
   led_on( LED_I, "f00f", 0 ),
   led_on( LED_Z, "f00g", 0 ),  
   led_on( LED_K, "f00h", msframe ),  // then 500ms later...
+
   led_off(LED_K, "f01a", msframe ),  // frame  1: turn off K & 500ms later...
   led_off(LED_Z, "f02a", msframe ),  // frame  2: turn off Z & 500ms later...
   led_off(LED_I, "f03a", msframe ),  // frame  3: turn off I & 500ms later...
@@ -91,9 +92,9 @@ const cmdline cmdlines[] PROGMEM = {
   led_on( LED_R, "f10b", msframe ),  // frame 10: turn on  R & 500ms later...
 
   led_off(LED_R, "f11a",   0 ),      // frame 11: turn off R 
-  led_on( LED_S, "f11b", msframe ),  // frame 11: turn on  S & 500ms later...
+  led_on( LED_Z, "f11b", msframe ),  // frame 11: turn on  Z & 500ms later...
 
-  led_off(LED_S, "f12a",   0 ),      // frame 12: turn off S 
+  led_off(LED_Z, "f12a",   0 ),      // frame 12: turn off Z 
   led_on( LED_T, "f12b", msframe ),  // frame 12: turn on  T & 500ms later...
 
   led_off(LED__, "f13a", msframe ),  // frame 13: all off & 500 ms later...
@@ -108,8 +109,8 @@ const cmdline cmdlines[] PROGMEM = {
 
   led_on( LED_R, "f19a",   0 ),      // frame 19: turn on  R,
   led_on( LED_I, "f19b",   0 ),      // frame 19: turn on  I, (yes redundant)
-  led_on( LED_R, "f19c",   0 ),      // frame 19: turn on  Z,
-  led_on( LED_R, "f19d", msframe ),  // frame 19: turn on  K & 500ms later...
+  led_on( LED_Z, "f19c",   0 ),      // frame 19: turn on  Z,
+  led_on( LED_K, "f19d", msframe ),  // frame 19: turn on  K & 500ms later...
 
   led_off(LED_R, "f20a",   0 ),      // frame 20: turn off R,
   led_off(LED_Z, "f20b",   0 ),      // frame 20: turn off Z,
@@ -117,8 +118,8 @@ const cmdline cmdlines[] PROGMEM = {
 
   led_on( LED_R, "f21a",   0 ),      // frame 21: turn on  R,
   led_on( LED_I, "f21b",   0 ),      // frame 21: turn on  I, (yes redundant)
-  led_on( LED_R, "f21c",   0 ),      // frame 21: turn on  Z,
-  led_on( LED_R, "f21d", msframe ),  // frame 21: turn on  K & 500ms later...
+  led_on( LED_Z, "f21c",   0 ),      // frame 21: turn on  Z,
+  led_on( LED_K, "f21d", msframe ),  // frame 21: turn on  K & 500ms later...
 
   led_off(LED__, "f22a", msframe ),  // frame 22 all off & 500 ms later...
 
@@ -126,8 +127,8 @@ const cmdline cmdlines[] PROGMEM = {
 
   led_on( LED_R, "f24a",   0 ),      // frame 24: turn on  R,
   led_on( LED_I, "f24b",   0 ),      // frame 24: turn on  I, (yes redundant)
-  led_on( LED_R, "f24c",   0 ),      // frame 24: turn on  Z,
-  led_on( LED_R, "f24d", msframe ),  // frame 24: turn on  K & 500ms later...
+  led_on( LED_Z, "f24c",   0 ),      // frame 24: turn on  Z,
+  led_on( LED_K, "f24d", msframe ),  // frame 24: turn on  K & 500ms later...
 
   led_off(LED__, "f25a", msframe ),  // frame 25 all off & 500 ms later...
   led_off(LED__, "f26a", msframe ),  // frame 26 all off & 500 ms later...
