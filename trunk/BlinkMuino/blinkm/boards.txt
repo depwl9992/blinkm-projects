@@ -1,0 +1,30 @@
+blinkm-attiny45.name=BlinkM ATtiny45 (int 8 MHz clock)
+blinkm-attiny45.bootloader.low_fuses=0xe2
+blinkm-attiny45.bootloader.high_fuses=0xdf
+blinkm-attiny45.bootloader.extended_fuses=0xff
+blinkm-attiny45.upload.maximum_size=4096
+blinkm-attiny45.build.mcu=attiny45
+blinkm-attiny45.build.f_cpu=8000000L
+blinkm-attiny45.build.core=arduino:arduino
+blinkm-attiny45.build.variant=tiny8
+
+blinkm-attiny85.name=BlinkM/MinM ATtiny85 (int 8 MHz clock)
+blinkm-attiny85.bootloader.low_fuses=0xe2
+blinkm-attiny85.bootloader.high_fuses=0xdf
+blinkm-attiny85.bootloader.extended_fuses=0xff
+blinkm-attiny85.upload.maximum_size=8192
+blinkm-attiny85.build.mcu=attiny85
+blinkm-attiny85.build.f_cpu=8000000L
+blinkm-attiny85.build.core=arduino:arduino
+blinkm-attiny85.build.variant=tiny8
+
+maxm-attiny84.name=BlinkM MaxM ATtiny84 (int 8 MHz clock)
+maxm-attiny84.bootloader.low_fuses=0xe2
+maxm-attiny84.bootloader.high_fuses=0xdf
+maxm-attiny84.bootloader.extended_fuses=0xff
+maxm-attiny84.upload.maximum_size=8192
+maxm-attiny84.build.mcu=attiny84
+maxm-attiny84.build.f_cpu=8000000L
+maxm-attiny84.build.core=arduino:arduino
+maxm-attiny84.build.variant=tiny14
+

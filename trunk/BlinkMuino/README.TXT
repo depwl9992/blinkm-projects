@@ -1,41 +1,45 @@
-BlinkMuino -- Small Arduino on an BlinkM using ATtiny85/ATtiny45
+BlinkMuino -- Small Arduino on an BlinkM using ATtiny85/ATtiny45/ATtiny84
 ==========
-2011 - Tod E. Kurt - http://todbot.com/blog/ - http://thingm.com/
+2011-2013 - Tod E. Kurt - http://todbot.com/blog/ - http://thingm.com/
 
 BlinkM and BlinkM MinM Smart LEDs can be used as a tiny Arduino.
-Or AVR ATtiny85/45 dev board.
+BlinkMs can also be used as a general AVR ATtiny85 Arduino dev board.
+This project is based on the efforts of the High-Low Tech group at MIT:
+http://hlt.media.mit.edu/?p=1695
 
 
-Capabilities
-------------
+BlinkM Capabilities
+--------------------
 - 0.4" square (MinM), or 0.62" square (BlinkM)
 - 8MHz clock speed
 - 3 high-brightness LEDs: red, green, & blue
 - 2 digital I/O lines 
 - 1 analog I/O line  (shared with digital)
-- 8k bytes Flash ROM (4kB on ATtiny45)
-- 512 bytes RAM      (256 bytes on ATtiny45)
-- 512 bytes EEPROM   (256 bytes on ATtiny45)
+- 8k bytes Flash ROM 
+- 512 bytes RAM      
+- 512 bytes EEPROM   
 
 
 Pin out
 -------
 Description - Arduino pin -  ATtiny85 pin 
 -----------   -----------    ------------
-red LED         3             PBx
-grn LED         4             PBx
-blu LED         1             PBx
-SDA pin, digital I/O          0             PBx
-SCL pin, analog & digital I/O         2             PBx 
+red LED          3              PB3
+grn LED          4              PB4
+blu LED          1              PB1
+SDA pin,         0              PB0
+SCL pin,         2              PB2 
 
 
 Hardware Setup
 --------------
 You will need an AVR-ISP programmer to program the BlinkM boards.
+These are fairly low-cost: the official AVRISPmkII from Atmel 
+is 35 USD, while the USBtinyISP is 22 USD.
+
 If you have an Arduino board, the ArduinoISP sketch turns the Arduino 
-into an AVR-ISP programmer.  However, it doesn't work for all Arduino boards.
-Or you can use real AVR-ISP programmer.  These are fairly low-cost:
-the official AVRISPmkII from Atmel is 35 USD, while the USBtinyISP is 22 USD.
+into an AVR-ISP programmer.  For more details on it, see:
+http://arduino.cc/en/Tutorial/ArduinoISP
 
 With a programmer acquired, wire up the BlinkM to it.  If using AruinoISP, 
 see the diagrams and photos here:
@@ -44,24 +48,29 @@ If using a regular AVR-ISP programmer, see the wiring diagrams here:
   http://code.google.com/p/blinkm-projects/wiki/BlinkMuino
 
 
-Software Installation
----------------------
-1. Copy the "hardware" in this folder to your Arduino sketchbook folder.
+Installation
+-------------
+0. Find your Arduino sketchbook folder.
+   The loccation of your sketchbook is shown in the the Arduino preferences
+   page at the "Sketchbook location" field.
 
-You can find the location of your sketchbook by opening the Arduino preferences
-and looking at the "Sketchbook location" field.
-(If you already have a "hardware" folder in your sketchbook folder, copy
-just the "blinkm" folder into it)
+1. Go to your Arduino sketchbook folder and create a folder called "hardware".
+   This folder might already exist.
 
-2. Restart the Arduino software.
+2. Copy the "blinkm" folder here into the "hardware" folder.  
+   The end result should be: Arduino/hardware/blinkm
 
-3. The "Tools" -> "Board" menu should now have entries for BlinkMs. 
-Select the entry that is correct for your hardware.
+3. Restart the Arduino software.
+
+4. The Tools -> Board menu should now have entries for BlinkMs. 
+   Select the entry that is correct for your BlinkM type.
+
+5. If you're using ArdiunoISP, set the Tools -> Serial Port to your Arduino.
 
 
 Use
 ---
-Open up one of the example sketches in hardware/blinkm/examples, say the
+Open up one of the example sketches in the "examples" directory, say the
 "BlinkMuinoBlink3" sketch.  Click the Run button to test compile it.
 
 Make sure your BlinkM is connected to the programmer and click "Upload".
@@ -75,11 +84,8 @@ Links
 - ReflashBlinkM
 -- http://code.google.com/p/blinkm-projects/wiki/ReflashBlinkM
 
-- Arduino core for ATtiny45/85
--- http://hlt.media.mit.edu/wiki/pmwiki.php?n=Main.ArduinoATtiny4585
-
-- Arduino core for ATtiny45/85
--- http://sites.google.com/site/elettronicaarduinoesperimenti/Home/arduino-ide-and-attiny45
+- Programming an ATtiny w/ Arduino 1.0
+-- http://hlt.media.mit.edu/?p=1695
 
 - ArduinoISP
 -- http://arduino.cc/en/Tutorial/ArduinoISP
