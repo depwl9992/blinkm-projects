@@ -65,7 +65,9 @@ Installation
 4. The Tools -> Board menu should now have entries for BlinkMs. 
    Select the entry that is correct for your BlinkM type.
 
-5. If you're using ArdiunoISP, set the Tools -> Serial Port to your Arduino.
+5. In the Tools -> Programmers menu, select your type of AVR-ISP programmer.
+
+6. If you're using ArdiunoISP, set the Tools -> Serial Port to your Arduino.
 
 
 Use
