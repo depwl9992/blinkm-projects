@@ -1,0 +1,74 @@
+
+
+// output from 99c store remote
+Decoded SONY: A90 (12 bits)
+Raw (26): 2400,600,1250,550,650,550,1250,550,650,600,1200,600,600,600,650,550,1250,550,650,550,650,550,650,550,650,
+
+// output from int osc with _delay_us()
+Raw (26): 2550,700,1400,700,850,700,1350,750,800,750,1400,650,850,700,850,700,1400,700,800,700,850,700,850,700,800,
+Raw (26): 2600,700,800,700,1400,750,1400,650,850,700,850,700,800,700,850,700,1400,700,850,700,800,700,850,700,800,
+Raw (26): 2550,750,1350,700,850,700,1400,700,800,750,1400,650,850,700,850,700,1400,700,800,700,850,700,800,750,800,
+Raw (26): 2550,750,800,700,1400,700,1400,700,850,700,750,750,850,700,850,650,1400,750,800,700,850,700,800,700,850,
+Raw (20): 2550,750,1350,700,850,700,1400,700,800,750,1400,650,850,700,850,700,1350,750,850,
+
+// output from ext osc with _delay_us()
+Raw (26): 2600,800,800,800,1450,750,1450,750,850,750,850,750,850,750,850,700,1500,750,800,750,900,700,850,750,850,
+Raw (26): 2650,800,1450,750,800,800,1400,800,800,800,1400,800,850,750,800,800,1400,800,800,750,900,700,850,750,850,
+
+// output from ext osc with delay_ten_us()
+Raw (26): 2400,600,650,550,1250,550,1200,550,700,500,650,550,650,550,650,550,1250,550,600,550,700,500,700,550,600,
+Raw (26): 2400,600,1250,550,650,550,1200,600,650,500,1250,550,650,550,650,550,1200,600,650,550,650,550,650,550,650,
+
+----------------------
+
+RC5 data rate:
+- on oscilloscope time to send 32 bits:: 60 ms --> 32/60e-3 = 533 bits/sec
+- sending 319 32-bit payloads with 10msec delay took 43 sec => 237 bits/sec
+- but was missing every odd payload
+- sending with 5msec day works for a bit then fails
+
+NEC data rate:
+- with 10ms delay: 812 32-bit payloads in 54 secs => 481 bits/sec
+- with 5ms delay: start missing decodes, the decoder or not?
+
+RC6 data rate:
+- with 10ms delay: skipped decodes and sometimes '0' result
+
+
+------------------------------
+47
+47 (8 bits)
+Raw (18): 245,25,35,25,60,30,30,30,35,25,35,25,65,25,65,25,65,
+0
+0 (0 bits)
+Raw (18): 245,25,35,25,65,25,35,25,35,25,65,25,35,30,25,35,30,
+48
+48 (8 bits)
+Raw (18): 240,30,30,30,60,25,35,25,40,25,65,25,35,25,35,25,35,
+
+--------------------------------
+"Sony data" data rate:
+- with 5ms delay: 771 32-bit packets in 52 secs => 474 bits/sec
+-- but miss every other packet
+-- setting _GAP in IRremoteInt.h to 3000 from 5000 fixed that
+- only get about 6ft of range at 5ms delay
+- test2: 768 32-bit packets in 47 secs => 522 bits/sec
+----
+
+Really need a checksum.
+Data packet looking like 6-bytes:
+   blinkmaddr, cmd, arg1,arg2,arg3, chksum
+But really like aligning on 4-byte boundaries, so if 8-byte packet:
+   freemaddr, blinkmaddr, cmd,arg1,arg2,arg3, chksum, 0
+
+
+
+
+
+-----------------
+Detector seems to crap out with SonyData4 and 5msec delay
+It has a "restore time"?
+But putting 50msec delay between two 4-byte packets seems to help
+
+
+----------------------
