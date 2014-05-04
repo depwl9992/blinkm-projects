@@ -59,7 +59,6 @@ void setup()
   blink( redPin,1);
   blink( grnPin,1);
   blink( bluPin,1);
-
 }
 
 void loop()
@@ -68,7 +67,7 @@ void loop()
   if( TinyWireS.available() ) { 
 
     cmd = TinyWireS.receive();    // first byte is command
-    if( cmd == 'c' || cmd == 'n' ) {  // "fade to color" and "set color now" cmds
+    if( cmd == 'c' || cmd == 'n' ) {  // "fade to color" & "set color now" cmds
       r = TinyWireS.receive();
       g = TinyWireS.receive();
       b = TinyWireS.receive();
@@ -77,10 +76,12 @@ void loop()
       analogWrite( bluPin, b );
     }
     else if( cmd == 'C' ) { // "random rgb color" cmd
-      
-      r = r + (rand() % TinyWireS.receive() );
-      g = g + (rand() % TinyWireS.receive() );
-      b = b + (rand() % TinyWireS.receive() );
+      byte dr = TinyWireS.receive();
+      byte dg = TinyWireS.receive();
+      byte db = TinyWireS.receive();
+      r = r + (rand() % dr ) - (dr/2);  // random around previsous color
+      g = g + (rand() % dg ) - (dg/2);
+      b = b + (rand() % db ) - (db/2);
       analogWrite( redPin, r );
       analogWrite( grnPin, g );
       analogWrite( bluPin, b );
